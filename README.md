@@ -5,9 +5,11 @@ A strategic simulation game (RTS/sandbox) in which the player leads the developm
 # Run
 
 pnpm install
+
 pnpm dev
 
 # Build
 
 pnpm build
+
 pnpm preview
