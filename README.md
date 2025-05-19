@@ -4,12 +4,12 @@ A strategic simulation game (RTS/sandbox) in which the player leads the developm
 
 # Run
 
-pnpm install
+npm install
 
-pnpm dev
+npm run dev
 
 # Build
 
-pnpm build
+npm run build
 
-pnpm preview
+npm run preview
