@@ -50,15 +50,12 @@ const createScene = function (engine: BABYLON.Engine, canvas: HTMLCanvasElement)
 
   // Ground with height map and texture
   const groundMaterial = new BABYLON.StandardMaterial('groundMaterial', scene);
-  groundMaterial.diffuseTexture = new BABYLON.Texture(
-    '/src/assets/heightmap_downscaled.png',
-    scene
-  );
+  groundMaterial.diffuseTexture = new BABYLON.Texture('/assets/heightmap_downscaled.png', scene);
   const scale = 100;
 
   const ground = BABYLON.MeshBuilder.CreateGroundFromHeightMap(
     'gdhm',
-    './src/assets/heightmap_downscaled.png',
+    '/assets/heightmap_downscaled.png',
     {
       width: 500940 / scale,
       height: 333960 / scale,
