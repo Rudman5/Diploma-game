@@ -49,13 +49,14 @@ const createScene = function (engine: BABYLON.Engine, canvas: HTMLCanvasElement)
   light.intensity = 0.5;
 
   // Ground with height map and texture
+  const groundImg = new URL('/assets/heightmap_downscaled.png', import.meta.url).href;
   const groundMaterial = new BABYLON.StandardMaterial('groundMaterial', scene);
-  groundMaterial.diffuseTexture = new BABYLON.Texture('/assets/heightmap_downscaled.png', scene);
-  const scale = 100;
+  groundMaterial.diffuseTexture = new BABYLON.Texture(groundImg, scene);
+  const scale = 25;
 
   const ground = BABYLON.MeshBuilder.CreateGroundFromHeightMap(
     'gdhm',
-    '/assets/heightmap_downscaled.png',
+    groundImg,
     {
       width: 500940 / scale,
       height: 333960 / scale,
