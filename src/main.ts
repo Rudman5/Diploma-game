@@ -1,4 +1,4 @@
-import { AppOne as App } from './core/AppOne';
+import { App } from './core/App';
 
 window.addEventListener('DOMContentLoaded', () => {
   const canvas = document.getElementById('renderCanvas') as HTMLCanvasElement;
