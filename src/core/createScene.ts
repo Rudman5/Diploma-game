@@ -1,14 +1,11 @@
 import * as BABYLON from '@babylonjs/core';
 import '@babylonjs/loaders';
 import { loadAssets } from './assetManager';
-import { createCamera } from './createCamera';
+import { createRTSCamera } from './createCamera';
 import { AstronautController } from './astronautController';
 
 export async function createScene(engine: BABYLON.Engine, canvas: HTMLCanvasElement) {
   const scene = new BABYLON.Scene(engine);
-
-  const camera = createCamera(scene, canvas);
-  camera.attachControl(canvas, true);
 
   const light = new BABYLON.HemisphericLight('light', new BABYLON.Vector3(0, 1, 0), scene);
   light.groundColor = new BABYLON.Color3(0, 0, 0);
@@ -21,12 +18,15 @@ export async function createScene(engine: BABYLON.Engine, canvas: HTMLCanvasElem
   groundMaterial.diffuseTexture = new BABYLON.Texture(groundImg, scene);
 
   const scale = 100;
+  const groundWidth = 500940 / scale;
+  const groundLength = 333960 / scale;
+
   const ground = BABYLON.MeshBuilder.CreateGroundFromHeightMap(
     'ground',
     groundImg,
     {
-      width: 500940 / scale,
-      height: 333960 / scale,
+      width: groundWidth,
+      height: groundLength,
       subdivisions: 2048,
       minHeight: -4899 / scale,
       maxHeight: 3466 / scale,
@@ -36,6 +36,9 @@ export async function createScene(engine: BABYLON.Engine, canvas: HTMLCanvasElem
 
   ground.material = groundMaterial;
   ground.isPickable = true;
+  ground.metadata = { isGround: true };
+  const camera = createRTSCamera(canvas, engine, scene, groundWidth, groundLength);
+  camera.attachControl(canvas, true);
 
   const astronaut = await loadAssets(scene);
   astronaut.playAnimation('Idle');
