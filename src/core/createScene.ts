@@ -1,10 +1,13 @@
 import * as BABYLON from '@babylonjs/core';
-import { loadCharacter } from './assetManager';
+import '@babylonjs/loaders';
+import { loadAssets } from './assetManager';
+import { createCamera } from './createCamera';
+import { AstronautController } from './astronautController';
 
 export async function createScene(engine: BABYLON.Engine, canvas: HTMLCanvasElement) {
   const scene = new BABYLON.Scene(engine);
 
-  const camera = new BABYLON.ArcRotateCamera('camera', 0, 0, 10, BABYLON.Vector3.Zero(), scene);
+  const camera = createCamera(scene, canvas);
   camera.attachControl(canvas, true);
 
   const light = new BABYLON.HemisphericLight('light', new BABYLON.Vector3(0, 1, 0), scene);
@@ -13,7 +16,6 @@ export async function createScene(engine: BABYLON.Engine, canvas: HTMLCanvasElem
   light.specular = new BABYLON.Color3(0, 0, 0);
   light.intensity = 0.7;
 
-  // Ground setup
   const groundImg = './assets/heightmap_downscaled.png';
   const groundMaterial = new BABYLON.StandardMaterial(groundImg, scene);
   groundMaterial.diffuseTexture = new BABYLON.Texture(groundImg, scene);
@@ -30,10 +32,15 @@ export async function createScene(engine: BABYLON.Engine, canvas: HTMLCanvasElem
       maxHeight: 3466 / scale,
     },
     scene
-  );
-  ground.material = groundMaterial;
+  ) as BABYLON.GroundMesh;
 
-  await loadCharacter(scene);
+  ground.material = groundMaterial;
+  ground.isPickable = true;
+
+  const astronaut = await loadAssets(scene);
+  astronaut.playAnimation('Idle');
+
+  new AstronautController(scene, camera, astronaut);
 
   return scene;
 }
