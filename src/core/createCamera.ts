@@ -43,7 +43,7 @@ export function createRTSCamera(
   groundWidth: number,
   groundLength: number
 ): UniversalCamera {
-  const camera = new UniversalCamera('rtsCam', new Vector3(-14, 20, 0), scene);
+  const camera = new UniversalCamera('rtsCam', new Vector3(-14, 20, 10), scene);
   camera.setTarget(Vector3.Zero());
   camera.mode = UniversalCamera.PERSPECTIVE_CAMERA;
   camera.speed = 1;
@@ -127,6 +127,7 @@ class CameraEdgeScrollInput implements ICameraInput<UniversalCamera> {
       vAlign: number,
       onEnter: () => void
     ) => {
+      rect.thickness = 0;
       rect.width = width;
       rect.height = height;
       rect.horizontalAlignment = hAlign;

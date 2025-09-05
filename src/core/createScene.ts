@@ -1,8 +1,8 @@
 import * as BABYLON from '@babylonjs/core';
 import '@babylonjs/loaders';
-import { loadAssets } from './assetManager';
 import { createRTSCamera } from './createCamera';
-import { AstronautController } from './astronautController';
+
+import { Astronaut } from './astronaut';
 
 export async function createScene(engine: BABYLON.Engine, canvas: HTMLCanvasElement) {
   const scene = new BABYLON.Scene(engine);
@@ -40,10 +40,47 @@ export async function createScene(engine: BABYLON.Engine, canvas: HTMLCanvasElem
   const camera = createRTSCamera(canvas, engine, scene, groundWidth, groundLength);
   camera.attachControl(canvas, true);
 
-  const astronaut = await loadAssets(scene);
-  astronaut.playAnimation('Idle');
+  const astronauts: Astronaut[] = [];
 
-  new AstronautController(scene, camera, astronaut);
+  for (let i = 0; i < 5; i++) {
+    const astro = new Astronaut(scene);
+    await astro.load();
+    astro.mesh.position.set(i * 2, 0, 0);
+    astro.playAnimation('Idle');
+    astronauts.push(astro);
+  }
+
+  // Pointer handler for selection and movement
+  scene.onPointerObservable.add((pointerInfo) => {
+    if (pointerInfo.type !== BABYLON.PointerEventTypes.POINTERPICK) return;
+
+    const pick = pointerInfo.pickInfo;
+    if (!pick?.hit || !pick.pickedMesh) return;
+
+    const astronaut = Astronaut.allAstronauts.find(
+      (a) => pick.pickedMesh !== null && a.containsMesh(pick.pickedMesh)
+    );
+
+    if (astronaut) {
+      Astronaut.selectedAstronaut?.deselect();
+      astronaut.select();
+      return;
+    }
+
+    if (Astronaut.selectedAstronaut && pick.pickedPoint) {
+      Astronaut.selectedAstronaut.walkTo(pick.pickedPoint, 2, undefined, true);
+    }
+  });
+
+  for (let i = 0; i < 50; i++) {
+    const rock = BABYLON.MeshBuilder.CreateBox('rock_' + i, { size: 1 }, scene);
+    rock.position.set(Math.random() * 50, 0, Math.random() * 50);
+    rock.metadata = { diggable: true };
+  }
+
+  const building = BABYLON.MeshBuilder.CreateBox('building', { size: 3 }, scene);
+  building.position.set(10, 0, 10);
+  building.metadata = { building: true };
 
   return scene;
 }

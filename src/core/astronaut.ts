@@ -2,75 +2,164 @@ import * as BABYLON from '@babylonjs/core';
 import '@babylonjs/loaders';
 
 export class Astronaut {
+  public mesh!: BABYLON.AbstractMesh;
+  public skeleton?: BABYLON.Skeleton;
   private scene: BABYLON.Scene;
-  private mesh: BABYLON.AbstractMesh | null = null;
-  private animations: Map<string, BABYLON.AnimationGroup> = new Map();
+  private animations = new Map<string, BABYLON.AnimationGroup>();
+  private moveObserver?: BABYLON.Observer<BABYLON.Scene>;
+  private _hl?: BABYLON.HighlightLayer;
+  private groundMesh?: BABYLON.GroundMesh;
 
-  constructor(scene: BABYLON.Scene) {
+  // Static references for selection
+  public static selectedAstronaut: Astronaut | null = null;
+  public static allAstronauts: Astronaut[] = [];
+
+  constructor(scene: BABYLON.Scene, groundMesh?: BABYLON.GroundMesh) {
     this.scene = scene;
+    this.groundMesh = groundMesh;
+    Astronaut.allAstronauts.push(this);
   }
 
-  // Load astronaut model and animations
-  async load() {
-    const result = await BABYLON.SceneLoader.ImportMeshAsync(
-      '',
-      './models/',
-      'animatedAstronaut.glb',
-      this.scene
-    );
+  // --- LOAD MODEL ---
+  async load(modelName: string = 'astronaut.glb', rootUrl: string = './models/') {
+    const result = await BABYLON.SceneLoader.ImportMeshAsync('', rootUrl, modelName, this.scene);
 
     this.mesh = result.meshes[0];
-    this.mesh.scaling.scaleInPlace(1);
     this.mesh.isPickable = true;
+    this.mesh.getChildMeshes().forEach((m) => (m.isPickable = true));
 
-    // Store animations
-    result.animationGroups.forEach((anim) => {
-      this.animations.set(anim.name, anim);
-    });
+    result.animationGroups.forEach((ag) => this.animations.set(ag.name, ag));
 
-    console.log('Astronaut loaded with animations:', [...this.animations.keys()]);
+    // Place on ground if available
+    if (this.groundMesh) {
+      this.mesh.position.y =
+        this.groundMesh.getHeightAtCoordinates(this.mesh.position.x, this.mesh.position.z) ??
+        this.mesh.position.y;
+    }
   }
 
-  // Play a named animation
-  playAnimation(name: string, loop = true) {
-    this.animations.forEach((anim) => anim.stop()); // stop all
-    const anim = this.animations.get(name);
-    if (anim) anim.start(loop);
+  // --- CHECK IF A MESH BELONGS TO THIS ASTRONAUT ---
+  containsMesh(mesh: BABYLON.AbstractMesh) {
+    return !!this.mesh && mesh.isDescendantOf(this.mesh);
   }
 
-  // Example actions
-  walkTo(target: BABYLON.Vector3) {
-    if (!this.mesh) return;
-    this.playAnimation('Walking');
-
-    const speed = 0.1;
-    const scene = this.scene;
-    scene.onBeforeRenderObservable.add(() => {
-      if (!this.mesh) return;
-      const dir = target.subtract(this.mesh.position);
-      if (dir.length() > 0.1) {
-        dir.normalize();
-        this.mesh.moveWithCollisions(dir.scale(speed));
-      } else {
-        this.playAnimation('Idle'); // stop walking when reached
-      }
-    });
-  }
-
-  dig() {
-    this.playAnimation('Digging');
-  }
-
-  build() {
-    this.playAnimation('Building');
-  }
-
+  // --- HIGHLIGHT ---
   select() {
     if (!this.mesh) return;
-    console.log('Astronaut selected!');
-    // You can add highlight or outline effect here
+    const hl = this.getHighlightLayer();
+    hl.addMesh(this.mesh as BABYLON.Mesh, BABYLON.Color3.Green());
+    this.mesh
+      .getChildMeshes()
+      .forEach((m) => hl.addMesh(m as BABYLON.Mesh, BABYLON.Color3.Green()));
+    Astronaut.selectedAstronaut = this;
   }
-  isMesh(mesh: BABYLON.AbstractMesh) {
-    return mesh === this.mesh;
+
+  deselect() {
+    if (!this.mesh) return;
+    const hl = this.getHighlightLayer();
+    hl.removeMesh(this.mesh as BABYLON.Mesh);
+    this.mesh.getChildMeshes().forEach((m) => hl.removeMesh(m as BABYLON.Mesh));
+
+    if (Astronaut.selectedAstronaut === this) Astronaut.selectedAstronaut = null;
+  }
+
+  private getHighlightLayer() {
+    if (!this._hl) this._hl = new BABYLON.HighlightLayer('hl', this.scene);
+    return this._hl;
+  }
+
+  // --- PLAY ANIMATION ---
+  playAnimation(name: string, loop = true) {
+    this.animations.forEach((a) => a.stop());
+    const ag = this.animations.get(name);
+    ag?.start(loop);
+  }
+
+  // --- WALK TO TARGET WITH TERRAIN FOLLOW ---
+  walkTo(target: BABYLON.Vector3, speed = 2, callback?: () => void, deselectOnComplete = false) {
+    if (!this.mesh) return;
+
+    // Cancel previous movement
+    if (this.moveObserver) {
+      this.scene.onBeforeRenderObservable.remove(this.moveObserver);
+      this.moveObserver = undefined;
+    }
+
+    const walking = this.animations.get('Walking');
+    const idle = this.animations.get('Idle');
+
+    walking?.start(true);
+
+    const stopDistance = 0.15;
+    const forwardCorrection = Math.PI; // Mixamo -Z forward
+
+    this.moveObserver = this.scene.onBeforeRenderObservable.add(() => {
+      const dt = this.scene.getEngine().getDeltaTime() / 1000;
+      const dir = target.subtract(this.mesh.position);
+      const dirXZ = new BABYLON.Vector3(dir.x, 0, dir.z);
+      const dist = dirXZ.length();
+
+      if (dist <= stopDistance) {
+        walking?.stop();
+        idle?.start(true);
+
+        this.scene.onBeforeRenderObservable.remove(this.moveObserver!);
+        this.moveObserver = undefined;
+
+        callback?.();
+        if (deselectOnComplete) this.deselect();
+        return;
+      }
+
+      dirXZ.normalize();
+
+      // Rotate smoothly
+      const targetYaw = Math.atan2(dirXZ.x, dirXZ.z) + forwardCorrection;
+      const targetQuat = BABYLON.Quaternion.RotationYawPitchRoll(targetYaw, 0, 0);
+      if (!this.mesh.rotationQuaternion)
+        this.mesh.rotationQuaternion = BABYLON.Quaternion.Identity();
+      BABYLON.Quaternion.SlerpToRef(
+        this.mesh.rotationQuaternion,
+        targetQuat,
+        dt * 5,
+        this.mesh.rotationQuaternion
+      );
+
+      // Move step along X/Z
+      const step = Math.min(speed * dt, dist);
+      const nextPos = this.mesh.position.add(dirXZ.scale(step));
+
+      // Follow terrain
+      if (this.groundMesh) {
+        nextPos.y = this.groundMesh.getHeightAtCoordinates(nextPos.x, nextPos.z) ?? nextPos.y;
+      }
+
+      this.mesh.position.copyFrom(nextPos);
+    });
+    this.deselect();
+  }
+
+  dig(position: BABYLON.Vector3) {
+    console.log('Digging at', position);
+    this.walkTo(
+      position,
+      2,
+      () => {
+        console.log('Finished digging at', position);
+      },
+      true
+    );
+  }
+
+  build(position: BABYLON.Vector3) {
+    console.log('Building at', position);
+    this.walkTo(
+      position,
+      2,
+      () => {
+        console.log('Finished building at', position);
+      },
+      true
+    );
   }
 }
