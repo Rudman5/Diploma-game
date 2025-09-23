@@ -5,14 +5,12 @@ import {
   Vector3,
   Matrix,
   Tools,
+  Scalar,
+  TmpVectors,
   PointerEventTypes,
   ICameraInput,
-  Scalar,
-  GroundMesh,
 } from '@babylonjs/core';
-import { AdvancedDynamicTexture, Rectangle, Control } from '@babylonjs/gui';
 
-// Define movement sources
 enum ECameraMovement {
   KEYS = 0,
   MOUSE = 1,
@@ -35,7 +33,6 @@ interface CameraMetadata {
   zoomSteps: number;
 }
 
-// Factory to build and initialize the camera with custom inputs
 export function createRTSCamera(
   canvas: HTMLCanvasElement,
   engine: Engine,
@@ -51,7 +48,7 @@ export function createRTSCamera(
 
   const halfWidth = groundWidth / 2;
   const halfZ = groundLength / 2;
-  const margin = 0;
+
   camera.metadata = {
     movedBy: null,
     targetPosition: camera.position.clone(),
@@ -60,10 +57,10 @@ export function createRTSCamera(
       .length(),
     rotation: Tools.ToRadians(180) + camera.rotation.y,
     rotationSpeed: 0.02,
-    minX: -halfWidth - margin,
-    maxX: halfWidth + margin,
-    minZ: -halfZ - margin,
-    maxZ: halfZ + margin,
+    minX: -halfWidth,
+    maxX: halfWidth,
+    minZ: -halfZ,
+    maxZ: halfZ,
     targetZoom: camera.fov,
     maxZoom: 1.4,
     minZoom: 0.5,
@@ -73,9 +70,7 @@ export function createRTSCamera(
 
   camera.inputs.clear();
 
-  const ui = AdvancedDynamicTexture.CreateFullscreenUI('UI');
-
-  camera.inputs.add(new CameraEdgeScrollInput(ui, camera));
+  camera.inputs.add(new CameraEdgeScrollInput(canvas, camera));
   camera.inputs.add(new CameraKeyboardInput(camera));
   camera.inputs.add(new CameraMouseWheelInput(camera, scene));
 
@@ -83,29 +78,30 @@ export function createRTSCamera(
   return camera;
 }
 
-// Edge-scrolling input
+// ---------- Edge scrolling ----------
 class CameraEdgeScrollInput implements ICameraInput<UniversalCamera> {
   public camera: UniversalCamera;
-  private ui: AdvancedDynamicTexture;
-
+  private canvas: HTMLCanvasElement;
   private _enabled = true;
-  private _top = false;
-  private _right = false;
-  private _bottom = false;
-  private _left = false;
+
+  private mouseX = 0;
+  private mouseY = 0;
+  private canvasWidth: number;
+  private canvasHeight: number;
 
   private readonly widthPercent = 0.05;
   private readonly heightPercent = 0.05;
-  private readonly alpha = 1.0;
 
-  private topRect = new Rectangle();
-  private rightRect = new Rectangle();
-  private bottomRect = new Rectangle();
-  private leftRect = new Rectangle();
-
-  constructor(ui: AdvancedDynamicTexture, camera: UniversalCamera) {
-    this.ui = ui;
+  constructor(canvas: HTMLCanvasElement, camera: UniversalCamera) {
+    this.canvas = canvas;
     this.camera = camera;
+    this.canvasWidth = canvas.clientWidth;
+    this.canvasHeight = canvas.clientHeight;
+
+    window.addEventListener('resize', () => {
+      this.canvasWidth = canvas.clientWidth;
+      this.canvasHeight = canvas.clientHeight;
+    });
   }
 
   getClassName(): string {
@@ -116,121 +112,55 @@ class CameraEdgeScrollInput implements ICameraInput<UniversalCamera> {
   }
 
   attachControl(): void {
-    const cam = this.camera;
-    const meta = cam.metadata as CameraMetadata;
-
-    const setupRect = (
-      rect: Rectangle,
-      width: number,
-      height: number,
-      hAlign: number,
-      vAlign: number,
-      onEnter: () => void
-    ) => {
-      rect.thickness = 0;
-      rect.width = width;
-      rect.height = height;
-      rect.horizontalAlignment = hAlign;
-      rect.verticalAlignment = vAlign;
-      rect.background = 'transparent';
-      rect.isPointerBlocker = false;
-      rect.alpha = this.alpha;
-      this.ui.addControl(rect);
-      rect.onPointerEnterObservable.add(onEnter);
-      rect.onPointerOutObservable.add(() => {
-        this._top = this._right = this._bottom = this._left = false;
-      });
-    };
-
-    setupRect(
-      this.topRect,
-      1 - 2 * this.heightPercent,
-      this.heightPercent,
-      Control.HORIZONTAL_ALIGNMENT_CENTER,
-      Control.VERTICAL_ALIGNMENT_TOP,
-      () => {
-        this._top = true;
-        meta.movedBy = meta.movedBy ?? ECameraMovement.MOUSE;
-      }
-    );
-
-    setupRect(
-      this.rightRect,
-      this.widthPercent,
-      1 - 2 * this.widthPercent,
-      Control.HORIZONTAL_ALIGNMENT_RIGHT,
-      Control.VERTICAL_ALIGNMENT_CENTER,
-      () => {
-        this._right = true;
-        meta.movedBy = meta.movedBy ?? ECameraMovement.MOUSE;
-      }
-    );
-
-    setupRect(
-      this.bottomRect,
-      1 - 2 * this.heightPercent,
-      this.heightPercent,
-      Control.HORIZONTAL_ALIGNMENT_CENTER,
-      Control.VERTICAL_ALIGNMENT_BOTTOM,
-      () => {
-        this._bottom = true;
-        meta.movedBy = meta.movedBy ?? ECameraMovement.MOUSE;
-      }
-    );
-
-    setupRect(
-      this.leftRect,
-      this.widthPercent,
-      1 - 2 * this.widthPercent,
-      Control.HORIZONTAL_ALIGNMENT_LEFT,
-      Control.VERTICAL_ALIGNMENT_CENTER,
-      () => {
-        this._left = true;
-        meta.movedBy = meta.movedBy ?? ECameraMovement.MOUSE;
-      }
-    );
+    this.canvas.addEventListener('mousemove', this.onMouseMove);
   }
-
   detachControl(): void {
-    [this.topRect, this.rightRect, this.bottomRect, this.leftRect].forEach((r) =>
-      this.ui.removeControl(r)
-    );
+    this.canvas.removeEventListener('mousemove', this.onMouseMove);
   }
+
+  private onMouseMove = (evt: MouseEvent) => {
+    this.mouseX = evt.offsetX / this.canvasWidth;
+    this.mouseY = evt.offsetY / this.canvasHeight;
+  };
 
   checkInputs(): void {
     if (!this._enabled) return;
 
     const cam = this.camera;
     const meta = cam.metadata as CameraMetadata;
-    const dir = new Vector3();
+    const dir = TmpVectors.Vector3[0].set(0, 0, 0);
 
-    if (this._top) dir.z += cam.speed;
-    if (this._bottom) dir.z -= cam.speed;
-    if (this._left) dir.x -= cam.speed;
-    if (this._right) dir.x += cam.speed;
+    if (this.mouseY <= this.heightPercent) dir.z += cam.speed;
+    if (this.mouseY >= 1 - this.heightPercent) dir.z -= cam.speed;
+    if (this.mouseX <= this.widthPercent) dir.x -= cam.speed;
+    if (this.mouseX >= 1 - this.widthPercent) dir.x += cam.speed;
 
     if (!dir.equals(Vector3.Zero())) {
-      const move = Vector3.TransformCoordinates(dir, Matrix.RotationY(cam.rotation.y));
-      meta.targetPosition.addInPlace(move);
+      const rotMat = TmpVectors.Matrix[0];
+      Matrix.RotationYToRef(cam.rotation.y, rotMat);
+      Vector3.TransformCoordinatesToRef(dir, rotMat, dir);
+      meta.targetPosition.addInPlace(dir);
       meta.movedBy = ECameraMovement.MOUSE;
     }
 
     meta.targetPosition.x = Scalar.Clamp(meta.targetPosition.x, meta.minX, meta.maxX);
     meta.targetPosition.z = Scalar.Clamp(meta.targetPosition.z, meta.minZ, meta.maxZ);
 
-    const diff = meta.targetPosition.subtract(cam.position).length();
+    const tmp = TmpVectors.Vector3[1];
+    meta.targetPosition.subtractToRef(cam.position, tmp);
+    const diff = tmp.length();
     if (diff > 0 && meta.movedBy === ECameraMovement.MOUSE) {
       const t = diff < 0.01 ? 1 : 0.02;
-      cam.position = Vector3.Lerp(cam.position, meta.targetPosition, t);
+      Vector3.LerpToRef(cam.position, meta.targetPosition, t, cam.position);
       if (t === 1) meta.movedBy = null;
     }
   }
 }
 
-// Keyboard movement + rotation
+// ---------- Keyboard ----------
 class CameraKeyboardInput implements ICameraInput<UniversalCamera> {
   public camera: UniversalCamera;
-  private keys: number[] = [];
+  private keys = new Set<number>();
 
   private keysUp = [38, 87];
   private keysDown = [40, 83];
@@ -256,89 +186,89 @@ class CameraKeyboardInput implements ICameraInput<UniversalCamera> {
     element.addEventListener('keydown', this.onKeyDown);
     element.addEventListener('keyup', this.onKeyUp);
   }
-
   detachControl(): void {
     const element = this.camera.getEngine().getInputElement() as HTMLElement;
     element.removeEventListener('keydown', this.onKeyDown);
     element.removeEventListener('keyup', this.onKeyUp);
-    this.keys = [];
+    this.keys.clear();
   }
 
   checkInputs(): void {
     const cam = this.camera;
     const meta = cam.metadata as CameraMetadata;
+    const dir = TmpVectors.Vector3[2].set(0, 0, 0);
 
     this.keys.forEach((kc) => {
-      const dir = new Vector3();
-
       if (this.keysLeft.includes(kc)) dir.x -= cam.speed;
       if (this.keysRight.includes(kc)) dir.x += cam.speed;
       if (this.keysUp.includes(kc)) dir.z += cam.speed;
       if (this.keysDown.includes(kc)) dir.z -= cam.speed;
 
-      if (!dir.equals(Vector3.Zero())) {
-        const move = Vector3.TransformCoordinates(dir, Matrix.RotationY(cam.rotation.y));
-        meta.targetPosition.addInPlace(move);
-        meta.movedBy = ECameraMovement.KEYS;
-      } else if (this.rotateLeft.includes(kc)) {
-        meta.rotation += meta.rotationSpeed;
-        this.updateRotation();
-      } else if (this.rotateRight.includes(kc)) {
-        meta.rotation -= meta.rotationSpeed;
-        this.updateRotation();
-      }
+      if (this.rotateLeft.includes(kc)) this.updateRotation(meta.rotation + meta.rotationSpeed);
+      if (this.rotateRight.includes(kc)) this.updateRotation(meta.rotation - meta.rotationSpeed);
     });
+
+    if (!dir.equals(Vector3.Zero())) {
+      const rotMat = TmpVectors.Matrix[1];
+      Matrix.RotationYToRef(cam.rotation.y, rotMat);
+      Vector3.TransformCoordinatesToRef(dir, rotMat, dir);
+      meta.targetPosition.addInPlace(dir);
+      meta.movedBy = ECameraMovement.KEYS;
+    }
 
     meta.targetPosition.x = Scalar.Clamp(meta.targetPosition.x, meta.minX, meta.maxX);
     meta.targetPosition.z = Scalar.Clamp(meta.targetPosition.z, meta.minZ, meta.maxZ);
 
-    const diff = meta.targetPosition.subtract(cam.position).length();
+    const tmp = TmpVectors.Vector3[3];
+    meta.targetPosition.subtractToRef(cam.position, tmp);
+    const diff = tmp.length();
     if (diff > 0 && meta.movedBy === ECameraMovement.KEYS) {
       const t = diff < 0.01 ? 1 : 0.02;
-      cam.position = Vector3.Lerp(cam.position, meta.targetPosition, t);
+      Vector3.LerpToRef(cam.position, meta.targetPosition, t, cam.position);
       if (t === 1) meta.movedBy = null;
     }
   }
 
   private onKeyDown = (evt: KeyboardEvent) => {
     if (
-      this.keysUp.includes(evt.keyCode) ||
-      this.keysDown.includes(evt.keyCode) ||
-      this.keysLeft.includes(evt.keyCode) ||
-      this.keysRight.includes(evt.keyCode) ||
-      this.rotateLeft.includes(evt.keyCode) ||
-      this.rotateRight.includes(evt.keyCode)
+      [
+        ...this.keysUp,
+        ...this.keysDown,
+        ...this.keysLeft,
+        ...this.keysRight,
+        ...this.rotateLeft,
+        ...this.rotateRight,
+      ].includes(evt.keyCode)
     ) {
-      if (!this.keys.includes(evt.keyCode)) this.keys.push(evt.keyCode);
+      this.keys.add(evt.keyCode);
       evt.preventDefault();
-
       const meta = this.camera.metadata as CameraMetadata;
       if (meta.movedBy === null) meta.movedBy = ECameraMovement.KEYS;
     }
   };
 
   private onKeyUp = (evt: KeyboardEvent) => {
-    const idx = this.keys.indexOf(evt.keyCode);
-    if (idx >= 0) this.keys.splice(idx, 1);
+    this.keys.delete(evt.keyCode);
     evt.preventDefault();
   };
 
-  private updateRotation(): void {
+  private updateRotation(newRotation: number): void {
     const cam = this.camera;
     const meta = cam.metadata as CameraMetadata;
+    meta.rotation = newRotation;
 
     const tx = cam.target.x;
     const tz = cam.target.z;
     const x = tx + meta.radius * Math.sin(meta.rotation);
     const z = tz + meta.radius * Math.cos(meta.rotation);
 
-    cam.position = new Vector3(x, cam.position.y, z);
+    cam.position.set(x, cam.position.y, z);
     cam.setTarget(new Vector3(tx, 0, tz));
     meta.targetPosition.copyFrom(cam.position);
   }
 }
 
-// Mouse wheel zoom input
+// ---------- Mouse wheel ----------
 class CameraMouseWheelInput implements ICameraInput<UniversalCamera> {
   public camera: UniversalCamera;
   private scene: Scene;
@@ -347,6 +277,12 @@ class CameraMouseWheelInput implements ICameraInput<UniversalCamera> {
   constructor(camera: UniversalCamera, scene: Scene) {
     this.camera = camera;
     this.scene = scene;
+
+    this.scene.onPointerObservable.add((info) => {
+      if (info.type === PointerEventTypes.POINTERWHEEL && info.event) {
+        this.wheelDelta += (info.event as WheelEvent).deltaY;
+      }
+    });
   }
 
   getClassName(): string {
@@ -356,17 +292,8 @@ class CameraMouseWheelInput implements ICameraInput<UniversalCamera> {
     return 'mouseWheel';
   }
 
-  attachControl(): void {
-    this.scene.onPointerObservable.add((info) => {
-      if (info.type === PointerEventTypes.POINTERWHEEL && info.event) {
-        this.wheelDelta += (info.event as WheelEvent).deltaY;
-      }
-    }, PointerEventTypes.POINTERWHEEL);
-  }
-
-  detachControl(): void {
-    // No explicit observer removal here for brevity
-  }
+  attachControl(): void {}
+  detachControl(): void {}
 
   checkInputs(): void {
     if (!this.wheelDelta) return;
@@ -381,11 +308,7 @@ class CameraMouseWheelInput implements ICameraInput<UniversalCamera> {
 
     this.wheelDelta = 0;
     const diff = cam.fov - meta.targetZoom;
-
-    if (Math.abs(diff) <= meta.zoom) {
-      cam.fov = meta.targetZoom;
-    } else {
-      cam.fov += diff > 0 ? -meta.zoom : meta.zoom;
-    }
+    if (Math.abs(diff) <= meta.zoom) cam.fov = meta.targetZoom;
+    else cam.fov += diff > 0 ? -meta.zoom : meta.zoom;
   }
 }

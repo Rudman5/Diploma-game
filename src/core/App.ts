@@ -18,8 +18,6 @@ export class App {
 
     this.scene.debugLayer.show({ overlay: true });
 
-    this.engine.runRenderLoop(() => {
-      this.scene.render();
-    });
+    this.engine.runRenderLoop(() => this.scene.render());
   }
 }

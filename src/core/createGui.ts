@@ -7,11 +7,10 @@ const modelFiles: string[] = [
   'apolloLunarModule.glb',
   'artemisRover.glb',
   'baseLarge.glb',
-  'buildingConnector.glb',
   'buildingPod.glb',
-  'buildingRamp.glb',
   'laboratory.glb',
   'solarPanelStructure.glb',
+  'livingQuarters.glb',
 ];
 
 export function createGUI(scene: BABYLON.Scene, engine: BABYLON.Engine) {

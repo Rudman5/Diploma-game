@@ -3,6 +3,7 @@ import '@babylonjs/loaders';
 import { createRTSCamera } from './createCamera';
 
 import { Astronaut } from './astronaut';
+import { SelectionManager } from './selectionManager';
 
 export async function createScene(engine: BABYLON.Engine, canvas: HTMLCanvasElement) {
   const scene = new BABYLON.Scene(engine);
@@ -27,17 +28,27 @@ export async function createScene(engine: BABYLON.Engine, canvas: HTMLCanvasElem
     {
       width: groundWidth,
       height: groundLength,
-      subdivisions: 2048,
+      subdivisions: 512,
       minHeight: -4899 / scale,
       maxHeight: 3466 / scale,
     },
     scene
   ) as BABYLON.GroundMesh;
-
+  ground.freezeWorldMatrix();
   ground.material = groundMaterial;
   ground.isPickable = true;
   ground.metadata = { isGround: true };
   const camera = createRTSCamera(canvas, engine, scene, groundWidth, groundLength);
+  // Testing purposes
+  // const camera = new BABYLON.ArcRotateCamera(
+  //   'Camera',
+  //   0,
+  //   0,sd
+  //   10,
+  //   new BABYLON.Vector3(0, 0, 0),
+  //   scene
+  // );
+
   camera.attachControl(canvas, true);
 
   const astronauts: Astronaut[] = [];
@@ -50,28 +61,17 @@ export async function createScene(engine: BABYLON.Engine, canvas: HTMLCanvasElem
     astronauts.push(astro);
   }
 
-  // Pointer handler for selection and movement
-  scene.onPointerObservable.add((pointerInfo) => {
-    if (pointerInfo.type !== BABYLON.PointerEventTypes.POINTERPICK) return;
-
-    const pick = pointerInfo.pickInfo;
+  canvas.addEventListener('pointerdown', () => {
+    const pick = scene.pick(scene.pointerX, scene.pointerY);
     if (!pick?.hit || !pick.pickedMesh) return;
 
-    const astronaut = Astronaut.allAstronauts.find(
-      (a) => pick.pickedMesh !== null && a.containsMesh(pick.pickedMesh)
-    );
-
-    if (astronaut) {
-      Astronaut.selectedAstronaut?.deselect();
-      astronaut.select();
-      return;
-    }
-
-    if (Astronaut.selectedAstronaut && pick.pickedPoint) {
-      Astronaut.selectedAstronaut.walkTo(pick.pickedPoint, 2, undefined, true);
+    const meta = pick.pickedMesh.metadata;
+    if (meta?.selectable) {
+      SelectionManager.setSelection(meta.selectable);
+    } else if (SelectionManager.getSelected() instanceof Astronaut && pick.pickedPoint) {
+      (SelectionManager.getSelected() as Astronaut).walkTo(pick.pickedPoint, 2);
     }
   });
-
   for (let i = 0; i < 50; i++) {
     const rock = BABYLON.MeshBuilder.CreateBox('rock_' + i, { size: 1 }, scene);
     rock.position.set(Math.random() * 50, 0, Math.random() * 50);
