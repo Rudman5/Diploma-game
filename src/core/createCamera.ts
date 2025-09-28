@@ -113,14 +113,28 @@ class CameraEdgeScrollInput implements ICameraInput<UniversalCamera> {
 
   attachControl(): void {
     this.canvas.addEventListener('mousemove', this.onMouseMove);
-  }
-  detachControl(): void {
-    this.canvas.removeEventListener('mousemove', this.onMouseMove);
+    this.canvas.addEventListener('mouseleave', this.onMouseLeave);
+    this.canvas.addEventListener('mouseenter', this.onMouseEnter);
   }
 
+  detachControl(): void {
+    this.canvas.removeEventListener('mousemove', this.onMouseMove);
+    this.canvas.removeEventListener('mouseleave', this.onMouseLeave);
+    this.canvas.removeEventListener('mouseenter', this.onMouseEnter);
+  }
   private onMouseMove = (evt: MouseEvent) => {
     this.mouseX = evt.offsetX / this.canvasWidth;
     this.mouseY = evt.offsetY / this.canvasHeight;
+  };
+
+  private onMouseLeave = () => {
+    this.mouseX = 0.5;
+    this.mouseY = 0.5;
+    this._enabled = false;
+  };
+
+  private onMouseEnter = () => {
+    this._enabled = true;
   };
 
   checkInputs(): void {

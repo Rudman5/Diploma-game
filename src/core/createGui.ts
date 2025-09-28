@@ -1,104 +1,79 @@
-import * as BABYLON from '@babylonjs/core';
-import '@babylonjs/loaders';
-import { AdvancedDynamicTexture, Button, StackPanel, Control } from '@babylonjs/gui';
 import { PlacementController } from './placementController';
+import * as BABYLON from '@babylonjs/core';
 
-const modelFiles: string[] = [
-  'apolloLunarModule.glb',
-  'artemisRover.glb',
-  'baseLarge.glb',
-  'buildingPod.glb',
-  'laboratory.glb',
-  'solarPanelStructure.glb',
-  'livingQuarters.glb',
-];
+const modelFiles: Record<string, { name: string; file: string; img: string }> = {
+  apolloLunarModule: {
+    name: 'Apollo Lunar Module',
+    file: 'apolloLunarModule.glb',
+    img: 'apolloLunarThumb.png',
+  },
+  artemisRover: { name: 'Artemis Rover', file: 'artemisRover.glb', img: 'artemisRoverThumb.png' },
+  baseLarge: { name: 'Base Large', file: 'baseLarge.glb', img: 'baseLargeThumb.png' },
+  buildingPod: { name: 'Building Pod', file: 'buildingPod.glb', img: 'buildingPodThumb.png' },
+  // laboratory: { name: 'Laboratory', file: 'laboratory.glb', img: 'laboratoryThumb.png' },
+  solarPanelStructure: {
+    name: 'Solar Panel Structure',
+    file: 'solarPanelStructure.glb',
+    img: 'solarPanelStructureThumb.png',
+  },
+  livingQuarters: {
+    name: 'Living Quarters',
+    file: 'livingQuarters.glb',
+    img: 'livingQuartersThumb.png',
+  },
+};
 
-export function createGUI(scene: BABYLON.Scene, engine: BABYLON.Engine) {
-  const guiTexture = AdvancedDynamicTexture.CreateFullscreenUI('UI');
+export function createGui(scene: BABYLON.Scene, placementController: PlacementController) {
+  const mainMenu = document.getElementById('main-menu')!;
+  const subMenu = document.getElementById('sub-menu')!;
+  const backBtn = document.getElementById('back-btn')!;
+  const modelButtonsContainer = document.getElementById('model-buttons')!;
+  let activeButton: HTMLButtonElement | null = null;
 
-  const MENU_WIDTH_PX = 700;
-  const MENU_HEIGHT_PX = 100;
-  const BUTTON_SIZE_PX = 80;
-  const BUTTON_MARGIN_PX = 10;
-  const BUTTONS_PER_ROW = Math.floor(
-    (MENU_WIDTH_PX + BUTTON_MARGIN_PX) / (BUTTON_SIZE_PX + BUTTON_MARGIN_PX)
-  );
+  mainMenu.querySelector('[data-action="buildings"]')!.addEventListener('click', () => {
+    mainMenu.classList.add('hidden');
+    subMenu.classList.remove('hidden');
+  });
 
-  const placementController = new PlacementController(scene, engine);
+  mainMenu.querySelector('[data-action="test"]')!.addEventListener('click', () => {
+    console.log('Test clicked');
+  });
 
-  const mainMenuPanel = new StackPanel();
-  mainMenuPanel.width = `${MENU_WIDTH_PX}px`;
-  mainMenuPanel.height = `${MENU_HEIGHT_PX}px`;
-  mainMenuPanel.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_CENTER;
-  mainMenuPanel.verticalAlignment = Control.VERTICAL_ALIGNMENT_BOTTOM;
-  mainMenuPanel.isVertical = false;
-  mainMenuPanel.spacing = BUTTON_MARGIN_PX;
-  guiTexture.addControl(mainMenuPanel);
-
-  const subMenuPanel = new StackPanel();
-  subMenuPanel.width = `${MENU_WIDTH_PX}px`;
-  subMenuPanel.height = `${MENU_HEIGHT_PX}px`;
-  subMenuPanel.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_CENTER;
-  subMenuPanel.verticalAlignment = Control.VERTICAL_ALIGNMENT_BOTTOM;
-  subMenuPanel.isVertical = false;
-  subMenuPanel.spacing = BUTTON_MARGIN_PX;
-  subMenuPanel.isVisible = false;
-  guiTexture.addControl(subMenuPanel);
-
-  function createButton(text: string, callback: () => void, isPlaceholder = false) {
-    const btn = Button.CreateSimpleButton(text, text);
-    btn.width = `${BUTTON_SIZE_PX}px`;
-    btn.height = `${BUTTON_SIZE_PX}px`;
-    btn.color = isPlaceholder ? 'transparent' : 'white';
-    btn.background = isPlaceholder ? 'transparent' : 'gray';
-    btn.cornerRadius = 10;
-    btn.thickness = isPlaceholder ? 0 : 1;
-    if (!isPlaceholder) {
-      btn.onPointerUpObservable.add(callback);
-    } else {
-      btn.isHitTestVisible = false;
-    }
-    return btn;
-  }
-
-  mainMenuPanel.addControl(
-    createButton('Buildings', () => {
-      mainMenuPanel.isVisible = false;
-      subMenuPanel.isVisible = true;
-      refreshSubMenu();
-    })
-  );
-
-  mainMenuPanel.addControl(
-    createButton('Test', () => {
-      console.log('Test clicked');
-    })
-  );
-
-  const backButton = createButton('⬅ Back', () => {
-    subMenuPanel.isVisible = false;
-    mainMenuPanel.isVisible = true;
+  backBtn.addEventListener('click', () => {
+    subMenu.classList.add('hidden');
+    mainMenu.classList.remove('hidden');
+    if (activeButton) activeButton.classList.remove('active');
+    activeButton = null;
   });
 
   function refreshSubMenu() {
-    subMenuPanel.clearControls();
-    subMenuPanel.addControl(backButton);
+    Object.entries(modelFiles).forEach(([key, data]) => {
+      const btn = document.createElement('button');
+      btn.className = 'menu-btn model-btn';
 
-    modelFiles.forEach((file) => {
-      const name = file.replace('.glb', '');
-      subMenuPanel.addControl(
-        createButton(name, () => {
-          placementController.startPlacingModel(file);
-        })
-      );
+      const img = document.createElement('img');
+      img.src = `assets/${data.img}`;
+      img.alt = data.name;
+      btn.appendChild(img);
+
+      const tooltip = document.createElement('div');
+      tooltip.className = 'tooltip';
+      tooltip.textContent = data.name;
+      btn.appendChild(tooltip);
+
+      btn.addEventListener('click', () => {
+        placementController.placeModelOnClick(data.file, () => {
+          btn.classList.remove('active');
+          activeButton = null;
+        });
+
+        if (activeButton) activeButton.classList.remove('active');
+        btn.classList.add('active');
+        activeButton = btn;
+      });
+
+      modelButtonsContainer.appendChild(btn);
     });
-
-    const totalButtons = modelFiles.length + 1;
-    const placeholdersNeeded =
-      BUTTONS_PER_ROW - (totalButtons % BUTTONS_PER_ROW || BUTTONS_PER_ROW);
-    for (let i = 0; i < placeholdersNeeded; i++) {
-      const placeholder = createButton('', () => {}, true);
-      subMenuPanel.addControl(placeholder);
-    }
   }
+  refreshSubMenu();
 }

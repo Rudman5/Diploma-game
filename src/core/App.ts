@@ -1,11 +1,13 @@
 import * as BABYLON from '@babylonjs/core/Legacy/legacy';
 import '@babylonjs/loaders';
 import { createScene } from './createScene';
-import { createGUI } from './createGui';
+import { createGui } from './createGui';
+import { PlacementController } from './placementController';
 
 export class App {
   engine: BABYLON.Engine;
   scene!: BABYLON.Scene;
+  placementController!: PlacementController;
 
   constructor(readonly canvas: HTMLCanvasElement) {
     this.engine = new BABYLON.Engine(canvas, true);
@@ -14,7 +16,9 @@ export class App {
 
   async run() {
     this.scene = await createScene(this.engine, this.canvas);
-    createGUI(this.scene, this.engine);
+    this.placementController = new PlacementController(this.scene, this.engine);
+
+    createGui(this.scene, this.placementController);
 
     this.scene.debugLayer.show({ overlay: true });
 

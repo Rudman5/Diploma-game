@@ -7,6 +7,10 @@ import { SelectionManager } from './selectionManager';
 
 export async function createScene(engine: BABYLON.Engine, canvas: HTMLCanvasElement) {
   const scene = new BABYLON.Scene(engine);
+  scene.createDefaultEnvironment({
+    createSkybox: false,
+    createGround: false,
+  });
 
   const light = new BABYLON.HemisphericLight('light', new BABYLON.Vector3(0, 1, 0), scene);
   light.groundColor = new BABYLON.Color3(0, 0, 0);
