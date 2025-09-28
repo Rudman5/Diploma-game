@@ -4,9 +4,12 @@ import { createRTSCamera } from './createCamera';
 
 import { Astronaut } from './astronaut';
 import { SelectionManager } from './selectionManager';
+import { createGui } from './createGui';
+import { PlacementController } from './placementController';
 
 export async function createScene(engine: BABYLON.Engine, canvas: HTMLCanvasElement) {
   const scene = new BABYLON.Scene(engine);
+
   scene.createDefaultEnvironment({
     createSkybox: false,
     createGround: false,
@@ -57,13 +60,38 @@ export async function createScene(engine: BABYLON.Engine, canvas: HTMLCanvasElem
 
   const astronauts: Astronaut[] = [];
 
-  for (let i = 0; i < 5; i++) {
-    const astro = new Astronaut(scene);
+  for (let i = 0; i < 1; i++) {
+    const astro = new Astronaut(scene, ground);
+
     await astro.load();
     astro.mesh.position.set(i * 2, 0, 0);
+
+    astro.mesh.position.y =
+      ground.getHeightAtCoordinates(astro.mesh.position.x, astro.mesh.position.z) ?? 0;
     astro.playAnimation('Idle');
     astronauts.push(astro);
   }
+
+  scene.onPointerObservable.add((pointerInfo) => {
+    if (pointerInfo.type !== BABYLON.PointerEventTypes.POINTERPICK) return;
+
+    const pick = pointerInfo.pickInfo;
+    if (!pick?.hit || !pick.pickedMesh) return;
+
+    const astronaut = Astronaut.allAstronauts.find(
+      (a) => pick.pickedMesh !== null && a.containsMesh(pick.pickedMesh)
+    );
+
+    if (astronaut) {
+      Astronaut.selectedAstronaut?.deselect();
+      astronaut.select();
+      return;
+    }
+
+    if (Astronaut.selectedAstronaut && pick.pickedPoint) {
+      Astronaut.selectedAstronaut.walkTo(pick.pickedPoint, 2, undefined, true);
+    }
+  });
 
   canvas.addEventListener('pointerdown', () => {
     const pick = scene.pick(scene.pointerX, scene.pointerY);
@@ -76,15 +104,8 @@ export async function createScene(engine: BABYLON.Engine, canvas: HTMLCanvasElem
       (SelectionManager.getSelected() as Astronaut).walkTo(pick.pickedPoint, 2);
     }
   });
-  for (let i = 0; i < 50; i++) {
-    const rock = BABYLON.MeshBuilder.CreateBox('rock_' + i, { size: 1 }, scene);
-    rock.position.set(Math.random() * 50, 0, Math.random() * 50);
-    rock.metadata = { diggable: true };
-  }
-
-  const building = BABYLON.MeshBuilder.CreateBox('building', { size: 3 }, scene);
-  building.position.set(10, 0, 10);
-  building.metadata = { building: true };
+  const placementController = new PlacementController(scene, engine);
+  createGui(placementController, ground);
 
   return scene;
 }

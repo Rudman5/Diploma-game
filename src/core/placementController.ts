@@ -7,83 +7,155 @@ import {
   SceneLoader,
   PointerEventTypes,
   PointerInfo,
+  HighlightLayer,
+  Color3,
 } from '@babylonjs/core';
 
 export class PlacementController {
   private scene: Scene;
   private engine: Engine;
-  private currentlyMovingMesh: TransformNode | null = null;
+  private currentRoot: TransformNode | null = null;
+  private rotating = false;
+  private placedObjects: TransformNode[] = [];
+  private highlightLayer: HighlightLayer;
+
+  private moveObserver: any = null;
+  private clickObserver: any = null;
+  private rotationObserver: any = null;
+  private keyboardObserver: any = null;
 
   constructor(scene: Scene, engine: Engine) {
     this.scene = scene;
     this.engine = engine;
+    this.highlightLayer = new HighlightLayer('hl', scene);
+
+    this.keyboardObserver = this.scene.onKeyboardObservable.add((kbInfo) => {
+      if (kbInfo.type === 1 && kbInfo.event.key === 'Escape') this.cancelPlacement();
+    });
   }
 
-  public async startPlacingModel(modelPath: string): Promise<void> {
-    // Dispose old moving mesh if exists
-    if (this.currentlyMovingMesh) {
-      this.currentlyMovingMesh.dispose();
-      this.currentlyMovingMesh = null;
-    }
+  public async placeModelOnClick(
+    modelPath: string,
+    groundMesh: Mesh,
+    onPlaced?: () => void,
+    options?: { gridSize?: number; yOffset?: number; rotationSpeed?: number; maxSlope?: number }
+  ): Promise<void> {
+    if (this.currentRoot) this.cancelPlacement();
 
-    // Load model meshes
     const result = await SceneLoader.ImportMeshAsync('', './buildModels/', modelPath, this.scene);
-
     const meshes = result.meshes.filter((m): m is Mesh => m instanceof Mesh);
     if (meshes.length === 0) {
       console.error('No mesh found to place');
       return;
     }
 
-    // Create a root node for the model
     const root = new TransformNode('modelRoot', this.scene);
-    meshes.forEach((m) => (m.parent = root));
-    this.currentlyMovingMesh = root;
-
-    // Make mesh semi-transparent
+    this.currentRoot = root;
     meshes.forEach((mesh) => {
-      if (mesh.material) {
-        const matClone = mesh.material.clone(`${mesh.name}_placementMat`);
-        if (matClone) matClone.alpha = 0.6;
-        mesh.material = matClone;
-      }
+      mesh.checkCollisions = true;
+      mesh.parent = root;
     });
 
-    this.currentlyMovingMesh.position = Vector3.Zero();
+    const yOffset = options?.yOffset ?? 0.01;
+    const gridSize = options?.gridSize ?? 0;
+    const rotationSpeed = options?.rotationSpeed ?? 0.03;
+    const maxSlope = options?.maxSlope ?? 0.5;
 
-    // Pointer move: follow mouse
-    const pointerMoveObserver = this.scene.onPointerObservable.add((pi: PointerInfo) => {
-      if (!this.currentlyMovingMesh) return;
-      if (
-        pi.type === PointerEventTypes.POINTERMOVE &&
-        pi.pickInfo?.hit &&
-        pi.pickInfo.pickedPoint
-      ) {
-        this.currentlyMovingMesh.position.copyFrom(pi.pickInfo.pickedPoint);
+    let canPlace = true;
+
+    this.moveObserver = this.scene.onPointerObservable.add((pi: PointerInfo) => {
+      if (!this.currentRoot || this.rotating || pi.type !== PointerEventTypes.POINTERMOVE) return;
+
+      const pick = this.scene.pick(
+        this.scene.pointerX,
+        this.scene.pointerY,
+        (m) => m === groundMesh
+      );
+      if (!pick?.hit || !pick.pickedPoint) return;
+
+      let pos = pick.pickedPoint.clone();
+      pos.y += yOffset;
+      if (gridSize > 0) {
+        pos.x = Math.round(pos.x / gridSize) * gridSize;
+        pos.z = Math.round(pos.z / gridSize) * gridSize;
       }
+      root.position.copyFrom(pos);
+
+      const normal = pick.getNormal(true) ?? Vector3.Up();
+      const slope = Math.acos(Vector3.Dot(normal, Vector3.Up()));
+      canPlace = slope <= maxSlope;
+
+      const bboxA = root.getHierarchyBoundingVectors(true);
+      for (const other of this.placedObjects) {
+        const bboxB = other.getHierarchyBoundingVectors(true);
+        if (
+          bboxA.min.x <= bboxB.max.x &&
+          bboxA.max.x >= bboxB.min.x &&
+          bboxA.min.y <= bboxB.max.y &&
+          bboxA.max.y >= bboxB.min.y &&
+          bboxA.min.z <= bboxB.max.z &&
+          bboxA.max.z >= bboxB.min.z
+        ) {
+          canPlace = false;
+          break;
+        }
+      }
+
+      this.highlightLayer.removeAllMeshes();
+      for (const mesh of meshes)
+        this.highlightLayer.addMesh(mesh, canPlace ? Color3.Green() : Color3.Red());
+
+      const forward = new Vector3(0, 0, 1);
+      const right = Vector3.Cross(forward, normal).normalize();
+      const correctedForward = Vector3.Cross(normal, right).normalize();
+      root.rotationQuaternion = null;
+      root.rotation = Vector3.RotationFromAxis(right, normal, correctedForward);
     });
 
-    // Pointer down: place mesh
-    const pointerDownObserver = this.scene.onPointerObservable.add((pi: PointerInfo) => {
-      if (!this.currentlyMovingMesh) return;
-      if (
-        pi.type === PointerEventTypes.POINTERDOWN &&
-        pi.pickInfo?.hit &&
-        pi.pickInfo.pickedPoint
-      ) {
-        this.currentlyMovingMesh.position.copyFrom(pi.pickInfo.pickedPoint);
-
-        // Restore opacity
-        meshes.forEach((mesh) => {
-          if (mesh.material) mesh.material.alpha = 1;
-        });
-
-        this.currentlyMovingMesh = null;
-
-        // Remove observers
-        this.scene.onPointerObservable.remove(pointerMoveObserver);
-        this.scene.onPointerObservable.remove(pointerDownObserver);
-      }
+    this.scene.onPointerObservable.add((pi: PointerInfo) => {
+      if (!this.currentRoot) return;
+      if (pi.type === PointerEventTypes.POINTERDOWN && pi.event.button === 2) this.rotating = true;
+      if (pi.type === PointerEventTypes.POINTERUP && pi.event.button === 2) this.rotating = false;
     });
+
+    this.rotationObserver = this.scene.onBeforeRenderObservable.add(() => {
+      if (this.currentRoot && this.rotating) this.currentRoot.rotation.y += rotationSpeed;
+    });
+
+    this.clickObserver = this.scene.onPointerObservable.add((pi: PointerInfo) => {
+      if (!this.currentRoot || pi.type !== PointerEventTypes.POINTERDOWN || pi.event.button !== 0)
+        return;
+      if (!canPlace) return;
+
+      this.placedObjects.push(this.currentRoot);
+      this.cleanupPlacement();
+      if (onPlaced) onPlaced();
+    });
+  }
+
+  public cancelPlacement(): void {
+    if (!this.currentRoot) return;
+    this.cleanupPlacement(true);
+  }
+
+  private cleanupPlacement(disposeCurrent = false) {
+    this.highlightLayer.removeAllMeshes();
+
+    if (this.moveObserver) this.scene.onPointerObservable.remove(this.moveObserver);
+    if (this.clickObserver) this.scene.onPointerObservable.remove(this.clickObserver);
+    if (this.rotationObserver) this.scene.onBeforeRenderObservable.remove(this.rotationObserver);
+
+    if (disposeCurrent && this.currentRoot) this.currentRoot.dispose();
+    this.currentRoot = null;
+    this.rotating = false;
+
+    this.moveObserver = null;
+    this.clickObserver = null;
+    this.rotationObserver = null;
+  }
+
+  public dispose() {
+    this.cancelPlacement();
+    if (this.keyboardObserver) this.scene.onKeyboardObservable.remove(this.keyboardObserver);
   }
 }

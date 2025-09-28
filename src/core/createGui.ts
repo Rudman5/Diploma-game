@@ -23,7 +23,7 @@ const modelFiles: Record<string, { name: string; file: string; img: string }> = 
   },
 };
 
-export function createGui(scene: BABYLON.Scene, placementController: PlacementController) {
+export function createGui(placementController: PlacementController, ground: BABYLON.GroundMesh) {
   const mainMenu = document.getElementById('main-menu')!;
   const subMenu = document.getElementById('sub-menu')!;
   const backBtn = document.getElementById('back-btn')!;
@@ -42,8 +42,12 @@ export function createGui(scene: BABYLON.Scene, placementController: PlacementCo
   backBtn.addEventListener('click', () => {
     subMenu.classList.add('hidden');
     mainMenu.classList.remove('hidden');
-    if (activeButton) activeButton.classList.remove('active');
-    activeButton = null;
+
+    if (activeButton) {
+      placementController.cancelPlacement();
+      activeButton.classList.remove('active');
+      activeButton = null;
+    }
   });
 
   function refreshSubMenu() {
@@ -62,12 +66,23 @@ export function createGui(scene: BABYLON.Scene, placementController: PlacementCo
       btn.appendChild(tooltip);
 
       btn.addEventListener('click', () => {
-        placementController.placeModelOnClick(data.file, () => {
+        if (activeButton === btn) {
+          placementController.cancelPlacement();
+          btn.classList.remove('active');
+          activeButton = null;
+          return;
+        }
+
+        if (activeButton && activeButton !== btn) {
+          placementController.cancelPlacement();
+          activeButton.classList.remove('active');
+        }
+
+        placementController.placeModelOnClick(data.file, ground, () => {
           btn.classList.remove('active');
           activeButton = null;
         });
 
-        if (activeButton) activeButton.classList.remove('active');
         btn.classList.add('active');
         activeButton = btn;
       });
@@ -75,5 +90,6 @@ export function createGui(scene: BABYLON.Scene, placementController: PlacementCo
       modelButtonsContainer.appendChild(btn);
     });
   }
+
   refreshSubMenu();
 }

@@ -7,7 +7,6 @@ import { PlacementController } from './placementController';
 export class App {
   engine: BABYLON.Engine;
   scene!: BABYLON.Scene;
-  placementController!: PlacementController;
 
   constructor(readonly canvas: HTMLCanvasElement) {
     this.engine = new BABYLON.Engine(canvas, true);
@@ -16,9 +15,6 @@ export class App {
 
   async run() {
     this.scene = await createScene(this.engine, this.canvas);
-    this.placementController = new PlacementController(this.scene, this.engine);
-
-    createGui(this.scene, this.placementController);
 
     this.scene.debugLayer.show({ overlay: true });
 
