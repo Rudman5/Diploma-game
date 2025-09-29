@@ -1,44 +1,36 @@
 import * as BABYLON from '@babylonjs/core';
 import '@babylonjs/loaders';
-import { Selectable } from './selectionManager';
 
-export class Astronaut implements Selectable {
+export class Astronaut {
   public mesh!: BABYLON.AbstractMesh;
   public skeleton?: BABYLON.Skeleton;
   private scene: BABYLON.Scene;
   private animations = new Map<string, BABYLON.AnimationGroup>();
   private moveObserver?: BABYLON.Observer<BABYLON.Scene>;
+  private _hl?: BABYLON.HighlightLayer;
   private groundMesh?: BABYLON.GroundMesh;
 
-  private static _highlightLayer?: BABYLON.HighlightLayer;
-  private _tmpDir = new BABYLON.Vector3();
-  private _tmpDirXZ = new BABYLON.Vector3();
-  private _tmpNextPos = new BABYLON.Vector3();
-  private _tmpQuat = new BABYLON.Quaternion();
+  public static selectedAstronaut: Astronaut | null = null;
+  public static allAstronauts: Astronaut[] = [];
 
-  constructor(scene: BABYLON.Scene, groundMesh?: BABYLON.GroundMesh) {
+  constructor(scene: BABYLON.Scene, groundMesh: BABYLON.GroundMesh) {
     this.scene = scene;
     this.groundMesh = groundMesh;
-    if (!Astronaut._highlightLayer) {
-      Astronaut._highlightLayer = new BABYLON.HighlightLayer('hl', this.scene);
-    }
+    Astronaut.allAstronauts.push(this);
   }
 
-  // --- LOAD MODEL ---
   async load(modelName: string = 'astronaut.glb', rootUrl: string = './models/') {
     const result = await BABYLON.SceneLoader.ImportMeshAsync('', rootUrl, modelName, this.scene);
+
     this.mesh = result.meshes[0];
     this.mesh.isPickable = true;
-    this.mesh.metadata = { selectable: this };
+    this.mesh.getChildMeshes().forEach((m) => (m.isPickable = true));
+    this.mesh.ellipsoid = new BABYLON.Vector3(1.5, 4, 1.5);
 
-    this.mesh.getChildMeshes().forEach((m) => {
-      m.isPickable = true;
-      m.metadata = { selectable: this };
-    });
+    this.mesh.checkCollisions = true;
 
     result.animationGroups.forEach((ag) => this.animations.set(ag.name, ag));
 
-    // Place on ground if available
     if (this.groundMesh) {
       this.mesh.position.y =
         this.groundMesh.getHeightAtCoordinates(this.mesh.position.x, this.mesh.position.z) ??
@@ -46,34 +38,49 @@ export class Astronaut implements Selectable {
     }
   }
 
-  // --- SELECTION ---
+  containsMesh(mesh: BABYLON.AbstractMesh) {
+    return !!this.mesh && mesh.isDescendantOf(this.mesh);
+  }
+
   select() {
-    const hl = Astronaut._highlightLayer!;
+    if (!this.mesh) return;
+    const hl = this.getHighlightLayer();
     hl.addMesh(this.mesh as BABYLON.Mesh, BABYLON.Color3.Green());
     this.mesh
       .getChildMeshes()
       .forEach((m) => hl.addMesh(m as BABYLON.Mesh, BABYLON.Color3.Green()));
+    Astronaut.selectedAstronaut = this;
   }
 
   deselect() {
-    const hl = Astronaut._highlightLayer!;
+    if (!this.mesh) return;
+    const hl = this.getHighlightLayer();
     hl.removeMesh(this.mesh as BABYLON.Mesh);
     this.mesh.getChildMeshes().forEach((m) => hl.removeMesh(m as BABYLON.Mesh));
+
+    if (Astronaut.selectedAstronaut === this) Astronaut.selectedAstronaut = null;
   }
 
-  // --- PLAY ANIMATION ---
+  private getHighlightLayer() {
+    if (!this._hl) this._hl = new BABYLON.HighlightLayer('hl', this.scene);
+    return this._hl;
+  }
+
   playAnimation(name: string, loop = true) {
-    const current = Array.from(this.animations.values()).find((a) => a.isPlaying);
-    current?.stop();
+    this.animations.forEach((a) => a.stop());
     const ag = this.animations.get(name);
     ag?.start(loop);
   }
 
-  // --- WALK TO TARGET WITH TERRAIN FOLLOW ---
-  walkTo(target: BABYLON.Vector3, speed = 2, callback?: () => void) {
+  walkTo(
+    target: BABYLON.Vector3,
+    speed = 2,
+    callback?: () => void,
+    deselectOnComplete = false,
+    obstacles: BABYLON.AbstractMesh[] = []
+  ) {
     if (!this.mesh) return;
 
-    // Cancel previous movement
     if (this.moveObserver) {
       this.scene.onBeforeRenderObservable.remove(this.moveObserver);
       this.moveObserver = undefined;
@@ -81,58 +88,114 @@ export class Astronaut implements Selectable {
 
     const walking = this.animations.get('Walking');
     const idle = this.animations.get('Idle');
+
     walking?.start(true);
 
     const stopDistance = 0.15;
-    const forwardCorrection = Math.PI; // Mixamo -Z forward
+    const forwardCorrection = Math.PI;
+
+    let lastPosition = this.mesh.position.clone();
+    let stuckTime = 0;
 
     this.moveObserver = this.scene.onBeforeRenderObservable.add(() => {
       const dt = this.scene.getEngine().getDeltaTime() / 1000;
 
-      // Direction to target
-      target.subtractToRef(this.mesh.position, this._tmpDir);
-      this._tmpDirXZ.set(this._tmpDir.x, 0, this._tmpDir.z);
-      const dist = this._tmpDirXZ.length();
+      let dir = target.subtract(this.mesh.position);
+      const dist = dir.length();
 
+      // Target reached
       if (dist <= stopDistance) {
         walking?.stop();
         idle?.start(true);
         this.scene.onBeforeRenderObservable.remove(this.moveObserver!);
         this.moveObserver = undefined;
         callback?.();
+        if (deselectOnComplete) this.deselect();
         return;
       }
 
-      this._tmpDirXZ.normalize();
+      let dirXZ = new BABYLON.Vector3(dir.x, 0, dir.z).normalize();
 
-      // Rotate smoothly
-      BABYLON.Quaternion.RotationYawPitchRollToRef(
-        Math.atan2(this._tmpDirXZ.x, this._tmpDirXZ.z) + forwardCorrection,
-        0,
-        0,
-        this._tmpQuat
-      );
+      obstacles.forEach((obs) => {
+        if (obs.intersectsMesh(this.mesh, false)) {
+          const angle = Math.PI / 4;
+          const cos = Math.cos(angle);
+          const sin = Math.sin(angle);
+          dirXZ = new BABYLON.Vector3(
+            dirXZ.x * cos - dirXZ.z * sin,
+            0,
+            dirXZ.x * sin + dirXZ.z * cos
+          ).normalize();
+        }
+      });
 
+      const targetYaw = Math.atan2(dirXZ.x, dirXZ.z) + forwardCorrection;
+      const targetQuat = BABYLON.Quaternion.RotationYawPitchRoll(targetYaw, 0, 0);
       if (!this.mesh.rotationQuaternion)
         this.mesh.rotationQuaternion = BABYLON.Quaternion.Identity();
       BABYLON.Quaternion.SlerpToRef(
         this.mesh.rotationQuaternion,
-        this._tmpQuat,
+        targetQuat,
         dt * 5,
         this.mesh.rotationQuaternion
       );
 
-      // Move step along X/Z
       const step = Math.min(speed * dt, dist);
-      this.mesh.position.addToRef(this._tmpDirXZ.scale(step), this._tmpNextPos);
+      const nextPos = this.mesh.position.add(dirXZ.scale(step));
 
-      // Follow terrain
       if (this.groundMesh) {
-        this._tmpNextPos.y =
-          this.groundMesh.getHeightAtCoordinates(this._tmpNextPos.x, this._tmpNextPos.z) ??
-          this._tmpNextPos.y;
+        nextPos.y = this.groundMesh.getHeightAtCoordinates(nextPos.x, nextPos.z) ?? nextPos.y;
       }
-      this.mesh.position.copyFrom(this._tmpNextPos);
+
+      if (this.mesh.checkCollisions) {
+        this.mesh.moveWithCollisions(nextPos.subtract(this.mesh.position));
+      } else {
+        this.mesh.position.copyFrom(nextPos);
+      }
+
+      const movedDistance = BABYLON.Vector3.Distance(this.mesh.position, lastPosition);
+      if (movedDistance < 0.01) {
+        stuckTime += dt;
+        if (stuckTime >= 1) {
+          walking?.stop();
+          idle?.play();
+          if (this.moveObserver) {
+            this.scene.onBeforeRenderObservable.remove(this.moveObserver);
+            this.moveObserver = undefined;
+          }
+          console.warn('Astronaut stopped: stuck for more than 1 second.');
+          return;
+        }
+      } else {
+        stuckTime = 0;
+        walking?.start(true);
+      }
+
+      lastPosition.copyFrom(this.mesh.position);
     });
+  }
+
+  dig(position: BABYLON.Vector3) {
+    console.log('Digging at', position);
+    this.walkTo(
+      position,
+      2,
+      () => {
+        console.log('Finished digging at', position);
+      },
+      true
+    );
+  }
+
+  build(position: BABYLON.Vector3) {
+    console.log('Building at', position);
+    this.walkTo(
+      position,
+      2,
+      () => {
+        console.log('Finished building at', position);
+      },
+      true
+    );
   }
 }
