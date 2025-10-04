@@ -1,55 +1,57 @@
-import {
-  Scene,
-  Engine,
-  Mesh,
-  TransformNode,
-  Vector3,
-  SceneLoader,
-  PointerEventTypes,
-  PointerInfo,
-  HighlightLayer,
-  Color3,
-} from '@babylonjs/core';
+import * as BABYLON from '@babylonjs/core';
+import { Astronaut } from './astronaut';
 
 export class PlacementController {
-  private scene: Scene;
-  private engine: Engine;
-  private currentRoot: TransformNode | null = null;
+  private scene: BABYLON.Scene;
+  private currentRoot: BABYLON.TransformNode | null = null;
   private rotating = false;
-  private placedObjects: TransformNode[] = [];
-  private highlightLayer: HighlightLayer;
+  private placedObjects: BABYLON.TransformNode[] = [];
+  private placedBBoxes: { min: BABYLON.Vector3; max: BABYLON.Vector3 }[] = [];
+  private highlightLayer: BABYLON.HighlightLayer;
 
-  private moveObserver: any = null;
-  private clickObserver: any = null;
-  private rotationObserver: any = null;
-  private keyboardObserver: any = null;
+  private pointerObserver?: BABYLON.Observer<BABYLON.PointerInfo>;
+  private rotationObserver?: BABYLON.Observer<BABYLON.Scene>;
+  private keyboardObserver?: BABYLON.Observer<BABYLON.KeyboardInfo>;
 
-  constructor(scene: Scene, engine: Engine) {
+  // NavMesh obstacles
+  private obstacles: any[] = [];
+
+  constructor(scene: BABYLON.Scene) {
     this.scene = scene;
-    this.engine = engine;
-    this.highlightLayer = new HighlightLayer('hl', scene);
+    this.highlightLayer = new BABYLON.HighlightLayer('hl', scene);
 
+    // Escape cancels placement
     this.keyboardObserver = this.scene.onKeyboardObservable.add((kbInfo) => {
-      if (kbInfo.type === 1 && kbInfo.event.key === 'Escape') this.cancelPlacement();
+      if (kbInfo.type === BABYLON.KeyboardEventTypes.KEYDOWN && kbInfo.event.key === 'Escape') {
+        this.cancelPlacement();
+      }
     });
   }
 
   public async placeModelOnClick(
     modelPath: string,
-    groundMesh: Mesh,
+    groundMesh: BABYLON.Mesh,
     onPlaced?: () => void,
     options?: { gridSize?: number; yOffset?: number; rotationSpeed?: number; maxSlope?: number }
   ): Promise<void> {
     if (this.currentRoot) this.cancelPlacement();
 
-    const result = await SceneLoader.ImportMeshAsync('', './buildModels/', modelPath, this.scene);
-    const meshes = result.meshes.filter((m): m is Mesh => m instanceof Mesh);
+    // Stop astronauts mid-walk
+    for (const astro of Astronaut.allAstronauts) astro.stopWalk();
+
+    const result = await BABYLON.SceneLoader.ImportMeshAsync(
+      '',
+      './buildModels/',
+      modelPath,
+      this.scene
+    );
+    const meshes = result.meshes.filter((m): m is BABYLON.Mesh => m instanceof BABYLON.Mesh);
     if (meshes.length === 0) {
       console.error('No mesh found to place');
       return;
     }
 
-    const root = new TransformNode('modelRoot', this.scene);
+    const root = new BABYLON.TransformNode('modelRoot', this.scene);
     this.currentRoot = root;
     meshes.forEach((mesh) => {
       mesh.checkCollisions = true;
@@ -63,73 +65,106 @@ export class PlacementController {
 
     let canPlace = true;
 
-    this.moveObserver = this.scene.onPointerObservable.add((pi: PointerInfo) => {
-      if (!this.currentRoot || this.rotating || pi.type !== PointerEventTypes.POINTERMOVE) return;
-
-      const pick = this.scene.pick(
-        this.scene.pointerX,
-        this.scene.pointerY,
-        (m) => m === groundMesh
-      );
-      if (!pick?.hit || !pick.pickedPoint) return;
-
-      let pos = pick.pickedPoint.clone();
-      pos.y += yOffset;
-      if (gridSize > 0) {
-        pos.x = Math.round(pos.x / gridSize) * gridSize;
-        pos.z = Math.round(pos.z / gridSize) * gridSize;
-      }
-      root.position.copyFrom(pos);
-
-      const normal = pick.getNormal(true) ?? Vector3.Up();
-      const slope = Math.acos(Vector3.Dot(normal, Vector3.Up()));
-      canPlace = slope <= maxSlope;
-
-      const bboxA = root.getHierarchyBoundingVectors(true);
-      for (const other of this.placedObjects) {
-        const bboxB = other.getHierarchyBoundingVectors(true);
-        if (
-          bboxA.min.x <= bboxB.max.x &&
-          bboxA.max.x >= bboxB.min.x &&
-          bboxA.min.y <= bboxB.max.y &&
-          bboxA.max.y >= bboxB.min.y &&
-          bboxA.min.z <= bboxB.max.z &&
-          bboxA.max.z >= bboxB.min.z
-        ) {
-          canPlace = false;
-          break;
-        }
-      }
-
-      this.highlightLayer.removeAllMeshes();
-      for (const mesh of meshes)
-        this.highlightLayer.addMesh(mesh, canPlace ? Color3.Green() : Color3.Red());
-
-      const forward = new Vector3(0, 0, 1);
-      const right = Vector3.Cross(forward, normal).normalize();
-      const correctedForward = Vector3.Cross(normal, right).normalize();
-      root.rotationQuaternion = null;
-      root.rotation = Vector3.RotationFromAxis(right, normal, correctedForward);
-    });
-
-    this.scene.onPointerObservable.add((pi: PointerInfo) => {
+    this.pointerObserver = this.scene.onPointerObservable.add(async (pi: BABYLON.PointerInfo) => {
       if (!this.currentRoot) return;
-      if (pi.type === PointerEventTypes.POINTERDOWN && pi.event.button === 2) this.rotating = true;
-      if (pi.type === PointerEventTypes.POINTERUP && pi.event.button === 2) this.rotating = false;
+
+      // Rotation
+      if (pi.type === BABYLON.PointerEventTypes.POINTERDOWN && pi.event.button === 2)
+        this.rotating = true;
+      if (pi.type === BABYLON.PointerEventTypes.POINTERUP && pi.event.button === 2)
+        this.rotating = false;
+
+      // Moving placement
+      if (pi.type === BABYLON.PointerEventTypes.POINTERMOVE && !this.rotating) {
+        const pick = this.scene.pick(
+          this.scene.pointerX,
+          this.scene.pointerY,
+          (m) => m === groundMesh
+        );
+        if (!pick?.hit || !pick.pickedPoint) return;
+
+        let pos = pick.pickedPoint.clone();
+        pos.y += yOffset;
+        if (gridSize > 0) {
+          pos.x = Math.round(pos.x / gridSize) * gridSize;
+          pos.z = Math.round(pos.z / gridSize) * gridSize;
+        }
+        root.position.copyFrom(pos);
+
+        // Slope check
+        const normal = pick.getNormal(true) ?? BABYLON.Vector3.Up();
+        const slope = Math.acos(BABYLON.Vector3.Dot(normal, BABYLON.Vector3.Up()));
+        canPlace = slope <= maxSlope;
+
+        // Collision with other placed objects
+        const bboxA = root.getHierarchyBoundingVectors(true);
+        for (const bboxB of this.placedBBoxes) {
+          if (
+            bboxA.min.x <= bboxB.max.x &&
+            bboxA.max.x >= bboxB.min.x &&
+            bboxA.min.y <= bboxB.max.y &&
+            bboxA.max.y >= bboxB.min.y &&
+            bboxA.min.z <= bboxB.max.z &&
+            bboxA.max.z >= bboxB.min.z
+          ) {
+            canPlace = false;
+            break;
+          }
+        }
+
+        // Highlight
+        this.highlightLayer.removeAllMeshes();
+        for (const mesh of meshes)
+          this.highlightLayer.addMesh(
+            mesh,
+            canPlace ? BABYLON.Color3.Green() : BABYLON.Color3.Red()
+          );
+
+        // Align rotation
+        const forward = new BABYLON.Vector3(0, 0, 1);
+        const right = BABYLON.Vector3.Cross(forward, normal).normalize();
+        const correctedForward = BABYLON.Vector3.Cross(normal, right).normalize();
+        root.rotationQuaternion = null;
+        root.rotation = BABYLON.Vector3.RotationFromAxis(right, normal, correctedForward);
+      }
+
+      // Confirm placement
+      if (pi.type === BABYLON.PointerEventTypes.POINTERDOWN && pi.event.button === 0 && canPlace) {
+        this.currentRoot!.freezeWorldMatrix();
+        this.placedObjects.push(this.currentRoot!);
+        const bbox = this.currentRoot!.getHierarchyBoundingVectors(true);
+        this.placedBBoxes.push({ min: bbox.min.clone(), max: bbox.max.clone() });
+
+        const crowd: BABYLON.ICrowd | undefined = (this.scene as any).crowd;
+        const navPlugin: any = (this.scene as any).navigationPlugin;
+
+        if (crowd && navPlugin) {
+          const center = this.currentRoot!.position.clone();
+          const size = this.currentRoot!.getHierarchyBoundingVectors(true);
+          const agentParams: BABYLON.IAgentParameters = {
+            radius: Math.max(size.max.x - size.min.x, size.max.z - size.min.z) / 2,
+            height: size.max.y - size.min.y,
+            maxSpeed: 0,
+            maxAcceleration: 0,
+            collisionQueryRange: Math.max(size.max.x - size.min.x, size.max.z - size.min.z),
+            pathOptimizationRange: 1,
+            separationWeight: 0,
+          };
+
+          const agentIndex = crowd.addAgent(center, agentParams, this.currentRoot!);
+          if (agentIndex >= 0) this.obstacles.push(agentIndex);
+          const dt = this.scene.getEngine().getDeltaTime() / 1000;
+          crowd.update(dt);
+        }
+
+        this.cleanupPlacement();
+        if (onPlaced) onPlaced();
+      }
     });
 
+    // Rotation per frame
     this.rotationObserver = this.scene.onBeforeRenderObservable.add(() => {
       if (this.currentRoot && this.rotating) this.currentRoot.rotation.y += rotationSpeed;
-    });
-
-    this.clickObserver = this.scene.onPointerObservable.add((pi: PointerInfo) => {
-      if (!this.currentRoot || pi.type !== PointerEventTypes.POINTERDOWN || pi.event.button !== 0)
-        return;
-      if (!canPlace) return;
-
-      this.placedObjects.push(this.currentRoot);
-      this.cleanupPlacement();
-      if (onPlaced) onPlaced();
     });
   }
 
@@ -140,22 +175,32 @@ export class PlacementController {
 
   private cleanupPlacement(disposeCurrent = false) {
     this.highlightLayer.removeAllMeshes();
-
-    if (this.moveObserver) this.scene.onPointerObservable.remove(this.moveObserver);
-    if (this.clickObserver) this.scene.onPointerObservable.remove(this.clickObserver);
+    if (this.pointerObserver) this.scene.onPointerObservable.remove(this.pointerObserver);
     if (this.rotationObserver) this.scene.onBeforeRenderObservable.remove(this.rotationObserver);
-
     if (disposeCurrent && this.currentRoot) this.currentRoot.dispose();
-    this.currentRoot = null;
-    this.rotating = false;
 
-    this.moveObserver = null;
-    this.clickObserver = null;
-    this.rotationObserver = null;
+    this.currentRoot = null;
+    this.pointerObserver = undefined;
+    this.rotationObserver = undefined;
+    this.rotating = false;
+  }
+
+  public removeObstacle(obstacle: any) {
+    const index = this.obstacles.indexOf(obstacle);
+    if (index !== -1) {
+      this.obstacles[index].dispose?.();
+      this.obstacles.splice(index, 1);
+    }
+  }
+
+  public clearObstacles() {
+    this.obstacles.forEach((o) => o.dispose?.());
+    this.obstacles = [];
   }
 
   public dispose() {
     this.cancelPlacement();
+    this.clearObstacles();
     if (this.keyboardObserver) this.scene.onKeyboardObservable.remove(this.keyboardObserver);
   }
 }

@@ -1,11 +1,11 @@
 import * as BABYLON from '@babylonjs/core';
 import '@babylonjs/loaders';
 import { createRTSCamera } from './createCamera';
-
 import { Astronaut } from './astronaut';
 import { SelectionManager } from './selectionManager';
 import { createGui } from './createGui';
 import { PlacementController } from './placementController';
+import { createNavMesh } from './createNavMesh';
 
 export async function createScene(engine: BABYLON.Engine, canvas: HTMLCanvasElement) {
   const scene = new BABYLON.Scene(engine);
@@ -35,7 +35,7 @@ export async function createScene(engine: BABYLON.Engine, canvas: HTMLCanvasElem
     {
       width: groundWidth,
       height: groundLength,
-      subdivisions: 512,
+      subdivisions: 256,
       minHeight: -4899 / scale,
       maxHeight: 3466 / scale,
     },
@@ -45,17 +45,17 @@ export async function createScene(engine: BABYLON.Engine, canvas: HTMLCanvasElem
   ground.material = groundMaterial;
   ground.isPickable = true;
   ground.metadata = { isGround: true };
+
   const camera = createRTSCamera(canvas, engine, scene, groundWidth, groundLength);
   // Testing purposes
   // const camera = new BABYLON.ArcRotateCamera(
   //   'Camera',
-  //   0,
-  //   0,sd
-  //   10,
-  //   new BABYLON.Vector3(0, 0, 0),
+  //   0.5,
+  //   0.5,
+  //   15,
+  //   new BABYLON.Vector3(5, 0, 0),
   //   scene
   // );
-
   camera.attachControl(canvas, true);
 
   const astronauts: Astronaut[] = [];
@@ -68,7 +68,6 @@ export async function createScene(engine: BABYLON.Engine, canvas: HTMLCanvasElem
 
     astro.mesh.position.y =
       ground.getHeightAtCoordinates(astro.mesh.position.x, astro.mesh.position.z) ?? 0;
-    astro.playAnimation('Idle');
     astronauts.push(astro);
   }
 
@@ -90,6 +89,7 @@ export async function createScene(engine: BABYLON.Engine, canvas: HTMLCanvasElem
 
     if (Astronaut.selectedAstronaut && pick.pickedPoint) {
       Astronaut.selectedAstronaut.walkTo(pick.pickedPoint, 2, undefined, true);
+      Astronaut.selectedAstronaut.deselect();
     }
   });
 
@@ -104,8 +104,9 @@ export async function createScene(engine: BABYLON.Engine, canvas: HTMLCanvasElem
       (SelectionManager.getSelected() as Astronaut).walkTo(pick.pickedPoint, 2);
     }
   });
-  const placementController = new PlacementController(scene, engine);
-  createGui(placementController, ground);
 
+  const placementController = new PlacementController(scene);
+  createGui(placementController, ground);
+  await createNavMesh(scene, [ground]);
   return scene;
 }

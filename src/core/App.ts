@@ -1,8 +1,6 @@
 import * as BABYLON from '@babylonjs/core/Legacy/legacy';
 import '@babylonjs/loaders';
 import { createScene } from './createScene';
-import { createGui } from './createGui';
-import { PlacementController } from './placementController';
 
 export class App {
   engine: BABYLON.Engine;
