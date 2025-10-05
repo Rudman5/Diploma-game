@@ -26,7 +26,7 @@ export async function createNavMesh(
     maxSimplificationError: 1.3,
     minRegionArea: 8,
     mergeRegionArea: 20,
-    maxVertsPerPoly: 6,
+    maxVertsPerPoly: 3,
     detailSampleDist: 2,
     detailSampleMaxError: 1,
     borderSize: 8,

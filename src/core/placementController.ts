@@ -36,9 +36,6 @@ export class PlacementController {
   ): Promise<void> {
     if (this.currentRoot) this.cancelPlacement();
 
-    // Stop astronauts mid-walk
-    for (const astro of Astronaut.allAstronauts) astro.stopWalk();
-
     const result = await BABYLON.SceneLoader.ImportMeshAsync(
       '',
       './buildModels/',
@@ -130,6 +127,7 @@ export class PlacementController {
 
       // Confirm placement
       if (pi.type === BABYLON.PointerEventTypes.POINTERDOWN && pi.event.button === 0 && canPlace) {
+        for (const astro of Astronaut.allAstronauts) astro.stopWalk();
         this.currentRoot!.freezeWorldMatrix();
         this.placedObjects.push(this.currentRoot!);
         const bbox = this.currentRoot!.getHierarchyBoundingVectors(true);

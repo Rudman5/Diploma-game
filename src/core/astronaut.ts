@@ -1,4 +1,6 @@
 import * as BABYLON from '@babylonjs/core';
+import { Rover } from './rover';
+import { hideLeaveButton, showLeaveButton } from './createGui';
 
 export class Astronaut {
   public mesh!: BABYLON.AbstractMesh;
@@ -11,10 +13,13 @@ export class Astronaut {
   private crowdAgent?: number;
   public static selectedAstronaut: Astronaut | null = null;
   public static allAstronauts: Astronaut[] = [];
+  public rover: Rover | undefined;
 
   constructor(scene: BABYLON.Scene, groundMesh: BABYLON.GroundMesh) {
     this.scene = scene;
     this.groundMesh = groundMesh;
+    this.rover = undefined;
+
     Astronaut.allAstronauts.push(this);
   }
 
@@ -72,12 +77,7 @@ export class Astronaut {
     ag?.start(loop);
   }
 
-  async walkTo(
-    target: BABYLON.Vector3,
-    speed = 2,
-    callback?: () => void,
-    deselectOnComplete = false
-  ) {
+  async walkTo(target: BABYLON.Vector3, speed = 2, callback?: () => void) {
     if (!this.mesh) return;
 
     const scene = this.scene;
@@ -156,17 +156,17 @@ export class Astronaut {
       }
 
       const vel = crowd.getAgentVelocity(agent);
-      const speedThreshold = 0.01;
+      const speedThreshold = 0.05;
       const distanceToTarget = BABYLON.Vector3.Distance(this.mesh.position, navTarget);
 
-      if (distanceToTarget < 0.2 || vel.length() < speedThreshold) {
+      if (distanceToTarget < 1 || vel.length() < speedThreshold) {
         walking?.stop();
         idle?.start(true);
 
         this.mesh.position.copyFrom(navTarget);
 
         if (callback) callback();
-        if (deselectOnComplete) this.deselect();
+        this.deselect();
 
         scene.onBeforeRenderObservable.remove(this.moveObserver!);
         this.moveObserver = undefined;
@@ -208,27 +208,89 @@ export class Astronaut {
     this.animations.get('Idle')?.start(true);
   }
 
+  enterRover(rover: Rover) {
+    if (!this.mesh) return;
+
+    if (Astronaut.selectedAstronaut === this) this.deselect();
+    if (Rover.selectedRover === rover) rover.deselect();
+
+    if (this._hl) this._hl.removeMesh(this.mesh as BABYLON.Mesh);
+    this.mesh.getChildMeshes().forEach((m) => this._hl?.removeMesh(m as BABYLON.Mesh));
+
+    this.rover = rover;
+    rover.occupiedBy = this;
+
+    this.mesh.parent = rover.mesh;
+    this.mesh.setEnabled(false);
+
+    showLeaveButton();
+  }
+
+  exitRover() {
+    if (!this.rover) return;
+
+    const rover = this.rover;
+
+    const hlRover = rover['_hl'] as BABYLON.HighlightLayer | undefined;
+    if (hlRover) {
+      hlRover.removeMesh(this.mesh as BABYLON.Mesh);
+      this.mesh.getChildMeshes().forEach((m) => hlRover.removeMesh(m as BABYLON.Mesh));
+    }
+
+    if (Rover.selectedRover === rover) rover.deselect();
+
+    const center = rover.mesh.getAbsolutePosition();
+    const rightDir = new BABYLON.Vector3(3, 0, 0);
+    const distance = 7;
+    const exitWorld = center.add(rightDir.normalize().scale(distance));
+
+    const ground = this.scene.getMeshByName('ground') as any;
+    if (ground && typeof ground.getHeightAtCoordinates === 'function') {
+      const gy = ground.getHeightAtCoordinates(exitWorld.x, exitWorld.z);
+      if (typeof gy === 'number') exitWorld.y = gy + 0.05;
+      else exitWorld.y = rover.mesh.position.y;
+    } else {
+      exitWorld.y = rover.mesh.position.y;
+    }
+
+    this.mesh.parent = null;
+    this.mesh.setEnabled(true);
+    rover.occupiedBy = null;
+    this.rover = undefined;
+
+    const crowd: BABYLON.ICrowd | undefined = (this.scene as any).crowd;
+    if (crowd) {
+      try {
+        const params: BABYLON.IAgentParameters = {
+          radius: 1.5,
+          height: 2,
+          maxSpeed: 2,
+          maxAcceleration: 8,
+          collisionQueryRange: 10,
+          pathOptimizationRange: 10,
+          separationWeight: 5,
+        };
+        this.crowdAgent = crowd.addAgent(exitWorld, params, this.mesh);
+        crowd.agentTeleport(this.crowdAgent, exitWorld);
+      } catch (e) {
+        console.warn('Failed to re-add astronaut to crowd', e);
+        this.mesh.position.copyFrom(exitWorld);
+      }
+    }
+    hideLeaveButton();
+  }
+
   dig(position: BABYLON.Vector3) {
     console.log('Digging at', position);
-    this.walkTo(
-      position,
-      2,
-      () => {
-        console.log('Finished digging at', position);
-      },
-      true
-    );
+    this.walkTo(position, 2, () => {
+      console.log('Finished digging at', position);
+    });
   }
 
   build(position: BABYLON.Vector3) {
     console.log('Building at', position);
-    this.walkTo(
-      position,
-      2,
-      () => {
-        console.log('Finished building at', position);
-      },
-      true
-    );
+    this.walkTo(position, 2, () => {
+      console.log('Finished building at', position);
+    });
   }
 }

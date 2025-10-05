@@ -3,9 +3,10 @@ import '@babylonjs/loaders';
 import { createRTSCamera } from './createCamera';
 import { Astronaut } from './astronaut';
 import { SelectionManager } from './selectionManager';
-import { createGui } from './createGui';
+import { createGui, showLeaveButton } from './createGui';
 import { PlacementController } from './placementController';
 import { createNavMesh } from './createNavMesh';
+import { Rover } from './rover';
 
 export async function createScene(engine: BABYLON.Engine, canvas: HTMLCanvasElement) {
   const scene = new BABYLON.Scene(engine);
@@ -58,6 +59,8 @@ export async function createScene(engine: BABYLON.Engine, canvas: HTMLCanvasElem
   // );
   camera.attachControl(canvas, true);
 
+  const audioEngine = await BABYLON.CreateAudioEngineAsync({ resumeOnInteraction: true });
+
   const astronauts: Astronaut[] = [];
 
   for (let i = 0; i < 1; i++) {
@@ -70,43 +73,72 @@ export async function createScene(engine: BABYLON.Engine, canvas: HTMLCanvasElem
       ground.getHeightAtCoordinates(astro.mesh.position.x, astro.mesh.position.z) ?? 0;
     astronauts.push(astro);
   }
+  const rover = new Rover(scene, ground);
+  await rover.load();
+  rover.mesh.position.set(15, 0, 0);
+  rover.mesh.position.y =
+    ground.getHeightAtCoordinates(rover.mesh.position.x, rover.mesh.position.z) ?? 0;
 
   scene.onPointerObservable.add((pointerInfo) => {
     if (pointerInfo.type !== BABYLON.PointerEventTypes.POINTERPICK) return;
-
     const pick = pointerInfo.pickInfo;
     if (!pick?.hit || !pick.pickedMesh) return;
 
-    const astronaut = Astronaut.allAstronauts.find(
-      (a) => pick.pickedMesh !== null && a.containsMesh(pick.pickedMesh)
+    const clickedAstronaut = Astronaut.allAstronauts.find((a) =>
+      a.containsMesh(pick.pickedMesh as BABYLON.AbstractMesh)
     );
+    const clickedRover = rover.containsMesh(pick.pickedMesh as BABYLON.AbstractMesh) ? rover : null;
+    const selectedAstronaut = Astronaut.selectedAstronaut;
+    const selectedRover = Rover.selectedRover;
 
-    if (astronaut) {
-      Astronaut.selectedAstronaut?.deselect();
-      astronaut.select();
+    if (clickedAstronaut) {
+      if (selectedAstronaut && selectedAstronaut !== clickedAstronaut) selectedAstronaut.deselect();
+      clickedAstronaut.select();
       return;
     }
 
-    if (Astronaut.selectedAstronaut && pick.pickedPoint) {
-      Astronaut.selectedAstronaut.walkTo(pick.pickedPoint, 2, undefined, true);
-      Astronaut.selectedAstronaut.deselect();
+    if (clickedRover) {
+      if (selectedAstronaut && !clickedRover.occupiedBy) {
+        const roverCenter = clickedRover.mesh.getAbsolutePosition();
+        const offsetDir = clickedRover.mesh.getDirection(new BABYLON.Vector3(2.5, 0, 0));
+        const entryPos = roverCenter.add(offsetDir.scale(2.5));
+        selectedAstronaut.walkTo(entryPos, 2, () => {
+          selectedAstronaut.enterRover(clickedRover);
+          clickedRover.select();
+          showLeaveButton();
+        });
+
+        selectedAstronaut.deselect();
+        return;
+      }
+
+      if (clickedRover.occupiedBy) {
+        if (selectedRover && selectedRover !== clickedRover) selectedRover.deselect();
+        clickedRover.select();
+        showLeaveButton();
+        if (selectedAstronaut) selectedAstronaut.deselect();
+        return;
+      }
     }
-  });
 
-  canvas.addEventListener('pointerdown', () => {
-    const pick = scene.pick(scene.pointerX, scene.pointerY);
-    if (!pick?.hit || !pick.pickedMesh) return;
+    if (pick.pickedPoint) {
+      if (selectedRover && selectedRover.occupiedBy) {
+        selectedRover.driveTo(pick.pickedPoint, 12);
+        selectedRover.deselect();
+        return;
+      }
 
-    const meta = pick.pickedMesh.metadata;
-    if (meta?.selectable) {
-      SelectionManager.setSelection(meta.selectable);
-    } else if (SelectionManager.getSelected() instanceof Astronaut && pick.pickedPoint) {
-      (SelectionManager.getSelected() as Astronaut).walkTo(pick.pickedPoint, 2);
+      if (selectedAstronaut && !selectedAstronaut.rover) {
+        selectedAstronaut.walkTo(pick.pickedPoint, 2);
+        selectedAstronaut.deselect();
+        return;
+      }
     }
   });
 
   const placementController = new PlacementController(scene);
   createGui(placementController, ground);
   await createNavMesh(scene, [ground]);
+
   return scene;
 }

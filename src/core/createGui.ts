@@ -1,3 +1,4 @@
+import { Astronaut } from './astronaut';
 import { PlacementController } from './placementController';
 import * as BABYLON from '@babylonjs/core';
 
@@ -90,6 +91,32 @@ export function createGui(placementController: PlacementController, ground: BABY
       modelButtonsContainer.appendChild(btn);
     });
   }
-
+  setupLeaveButton();
   refreshSubMenu();
+}
+
+export function setupLeaveButton() {
+  const leaveBtn = document.getElementById('leave-rover-btn')!;
+  if (!leaveBtn) return;
+
+  leaveBtn.onclick = () => {
+    const astronaut = Astronaut.allAstronauts.find((a) => a.rover);
+    if (!astronaut) {
+      console.warn('No astronaut found inside a rover.');
+      return;
+    }
+
+    astronaut.exitRover();
+    hideLeaveButton();
+  };
+}
+
+export function showLeaveButton() {
+  const leaveBtn = document.getElementById('leave-rover-btn')!;
+  if (leaveBtn) leaveBtn.style.display = 'inline-flex';
+}
+
+export function hideLeaveButton() {
+  const leaveBtn = document.getElementById('leave-rover-btn')!;
+  if (leaveBtn) leaveBtn.style.display = 'none';
 }
