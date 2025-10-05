@@ -9,6 +9,7 @@ import {
   TmpVectors,
   PointerEventTypes,
   ICameraInput,
+  AbstractMesh,
 } from '@babylonjs/core';
 
 enum ECameraMovement {
@@ -70,7 +71,7 @@ export function createRTSCamera(
 
   camera.inputs.clear();
 
-  camera.inputs.add(new CameraEdgeScrollInput(canvas, camera));
+  // camera.inputs.add(new CameraEdgeScrollInput(canvas, camera));
   camera.inputs.add(new CameraKeyboardInput(camera));
   camera.inputs.add(new CameraMouseWheelInput(camera, scene));
 
@@ -325,4 +326,14 @@ class CameraMouseWheelInput implements ICameraInput<UniversalCamera> {
     if (Math.abs(diff) <= meta.zoom) cam.fov = meta.targetZoom;
     else cam.fov += diff > 0 ? -meta.zoom : meta.zoom;
   }
+}
+
+export function moveCameraTo(camera: UniversalCamera, target: Vector3) {
+  const meta = camera.metadata as CameraMetadata;
+  const radius = meta.radius;
+  const rotation = meta.rotation;
+  const newPosX = target.x + radius * Math.sin(rotation);
+  const newPosZ = target.z + radius * Math.cos(rotation);
+  const newPosY = camera.position.y;
+  meta.targetPosition.copyFrom(camera.position.set(newPosX, newPosY, newPosZ));
 }

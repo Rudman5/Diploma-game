@@ -9,9 +9,9 @@ export class Rover {
   private _hl?: BABYLON.HighlightLayer;
   private groundMesh?: BABYLON.GroundMesh;
   private crowdAgent?: number;
-  private engineSound?: BABYLON.StaticSound;
 
-  public occupiedBy: Astronaut | null = null;
+  public engineSound?: BABYLON.StaticSound;
+  public occupiedBy: Astronaut | undefined = undefined;
   public static selectedRover: Rover | null = null;
 
   constructor(scene: BABYLON.Scene, groundMesh: BABYLON.GroundMesh) {
@@ -53,6 +53,9 @@ export class Rover {
 
   deselect() {
     if (!this.mesh) return;
+    if (this.engineSound) {
+      this.engineSound.stop();
+    }
     const hl = this.getHighlightLayer();
     hl.removeMesh(this.mesh as BABYLON.Mesh);
     this.mesh.getChildMeshes().forEach((m) => hl.removeMesh(m as BABYLON.Mesh));

@@ -2,8 +2,7 @@ import * as BABYLON from '@babylonjs/core';
 import '@babylonjs/loaders';
 import { createRTSCamera } from './createCamera';
 import { Astronaut } from './astronaut';
-import { SelectionManager } from './selectionManager';
-import { createGui, showLeaveButton } from './createGui';
+import { createGui, setupAstronautThumbnails, showLeaveButton } from './createGui';
 import { PlacementController } from './placementController';
 import { createNavMesh } from './createNavMesh';
 import { Rover } from './rover';
@@ -61,18 +60,22 @@ export async function createScene(engine: BABYLON.Engine, canvas: HTMLCanvasElem
 
   const audioEngine = await BABYLON.CreateAudioEngineAsync({ resumeOnInteraction: true });
 
-  const astronauts: Astronaut[] = [];
+  const astronautData = [
+    { id: 'neil-armstrong', x: 0, z: 0 },
+    { id: 'buzz-aldrin', x: 2, z: 0 },
+    { id: 'michael-collins', x: 4, z: 0 },
+  ];
 
-  for (let i = 0; i < 1; i++) {
-    const astro = new Astronaut(scene, ground);
-
+  for (const data of astronautData) {
+    const astro = new Astronaut(scene, ground, data.id);
     await astro.load();
-    astro.mesh.position.set(i * 2, 0, 0);
-
-    astro.mesh.position.y =
-      ground.getHeightAtCoordinates(astro.mesh.position.x, astro.mesh.position.z) ?? 0;
-    astronauts.push(astro);
+    astro.mesh.position.set(data.x, 0, data.z);
+    astro.mesh.position.y = ground.getHeightAtCoordinates(data.x, data.z) ?? 0;
+    astro.addCrowdAgent();
   }
+
+  setupAstronautThumbnails(scene, camera);
+
   const rover = new Rover(scene, ground);
   await rover.load();
   rover.mesh.position.set(15, 0, 0);
@@ -92,6 +95,13 @@ export async function createScene(engine: BABYLON.Engine, canvas: HTMLCanvasElem
     const selectedRover = Rover.selectedRover;
 
     if (clickedAstronaut) {
+      if (clickedAstronaut.rover) {
+        if (selectedRover && selectedRover !== clickedAstronaut.rover) selectedRover.deselect();
+        clickedAstronaut.rover.select();
+        return;
+      }
+
+      if (selectedRover) selectedRover.deselect();
       if (selectedAstronaut && selectedAstronaut !== clickedAstronaut) selectedAstronaut.deselect();
       clickedAstronaut.select();
       return;
@@ -107,7 +117,6 @@ export async function createScene(engine: BABYLON.Engine, canvas: HTMLCanvasElem
           clickedRover.select();
           showLeaveButton();
         });
-
         selectedAstronaut.deselect();
         return;
       }

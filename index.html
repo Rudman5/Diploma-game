@@ -9,65 +9,90 @@
     <canvas id="renderCanvas"></canvas>
 
     <div id="gui-container">
-      <div id="resource-bar">
-        <div class="resource">
-          <svg
-            focusable="false"
-            aria-hidden="true"
-            viewBox="0 0 24 24"
-            style="fill: rgb(39, 222, 72)"
-          >
-            <path
-              d="M14.5 17c0 1.65-1.35 3-3 3s-3-1.35-3-3h2c0 .55.45 1 1 1s1-.45 1-1-.45-1-1-1H2v-2h9.5c1.65 0 3 1.35 3 3M19 6.5C19 4.57 17.43 3 15.5 3S12 4.57 12 6.5h2c0-.83.67-1.5 1.5-1.5s1.5.67 1.5 1.5S16.33 8 15.5 8H2v2h13.5c1.93 0 3.5-1.57 3.5-3.5m-.5 4.5H2v2h16.5c.83 0 1.5.67 1.5 1.5s-.67 1.5-1.5 1.5v2c1.93 0 3.5-1.57 3.5-3.5S20.43 11 18.5 11"
-            ></path>
-          </svg>
-          <span id="oxygen-count">100</span>
-          <div>Oxygen</div>
+      <div class="top-container">
+        <div id="resource-bar">
+          <div class="resource">
+            <svg
+              focusable="false"
+              aria-hidden="true"
+              viewBox="0 0 24 24"
+              style="fill: rgb(39, 222, 72)"
+            >
+              <path
+                d="M14.5 17c0 1.65-1.35 3-3 3s-3-1.35-3-3h2c0 .55.45 1 1 1s1-.45 1-1-.45-1-1-1H2v-2h9.5c1.65 0 3 1.35 3 3M19 6.5C19 4.57 17.43 3 15.5 3S12 4.57 12 6.5h2c0-.83.67-1.5 1.5-1.5s1.5.67 1.5 1.5S16.33 8 15.5 8H2v2h13.5c1.93 0 3.5-1.57 3.5-3.5m-.5 4.5H2v2h16.5c.83 0 1.5.67 1.5 1.5s-.67 1.5-1.5 1.5v2c1.93 0 3.5-1.57 3.5-3.5S20.43 11 18.5 11"
+              ></path>
+            </svg>
+            <span id="oxygen-count">100</span>
+            <div>Oxygen</div>
+          </div>
+          <div class="resource">
+            <svg
+              style="fill: rgb(255, 255, 0)"
+              focusable="false"
+              aria-hidden="true"
+              viewBox="0 0 24 24"
+            >
+              <path
+                d="M11 21h-1l1-7H7.5c-.58 0-.57-.32-.38-.66s.05-.08.07-.12C8.48 10.94 10.42 7.54 13 3h1l-1 7h3.5c.49 0 .56.33.47.51l-.07.15C12.96 17.55 11 21 11 21"
+              ></path>
+            </svg>
+            <span id="Energy-count">100/100</span>
+            <div>Energy</div>
+          </div>
+          <div class="resource">
+            <svg
+              focusable="false"
+              aria-hidden="true"
+              viewBox="0 0 24 24"
+              style="fill: rgb(201, 17, 45)"
+            >
+              <path
+                d="M11 9H9V2H7v7H5V2H3v7c0 2.12 1.66 3.84 3.75 3.97V22h2.5v-9.03C11.34 12.84 13 11.12 13 9V2h-2zm5-3v8h2.5v8H21V2c-2.76 0-5 2.24-5 4"
+              ></path>
+            </svg>
+            <span id="food-count">50</span>
+            <div>Food</div>
+          </div>
+          <div class="resource">
+            <svg
+              focusable="false"
+              aria-hidden="true"
+              viewBox="0 0 24 24"
+              style="fill: rgb(46, 144, 176)"
+            >
+              <path
+                d="M17.66 8 12 2.35 6.34 8C4.78 9.56 4 11.64 4 13.64s.78 4.11 2.34 5.67 3.61 2.35 5.66 2.35 4.1-.79 5.66-2.35S20 15.64 20 13.64 19.22 9.56 17.66 8M6 14c.01-2 .62-3.27 1.76-4.4L12 5.27l4.24 4.38C17.38 10.77 17.99 12 18 14z"
+              ></path>
+            </svg>
+            <span id="Water-count">50</span>
+            <div>Water</div>
+          </div>
         </div>
-        <div class="resource">
-          <svg
-            style="fill: rgb(255, 255, 0)"
-            focusable="false"
-            aria-hidden="true"
-            viewBox="0 0 24 24"
-          >
-            <path
-              d="M11 21h-1l1-7H7.5c-.58 0-.57-.32-.38-.66s.05-.08.07-.12C8.48 10.94 10.42 7.54 13 3h1l-1 7h3.5c.49 0 .56.33.47.51l-.07.15C12.96 17.55 11 21 11 21"
-            ></path>
-          </svg>
-          <span id="Energy-count">100/100</span>
-          <div>Energy</div>
-        </div>
-        <div class="resource">
-          <svg
-            focusable="false"
-            aria-hidden="true"
-            viewBox="0 0 24 24"
-            style="fill: rgb(201, 17, 45)"
-          >
-            <path
-              d="M11 9H9V2H7v7H5V2H3v7c0 2.12 1.66 3.84 3.75 3.97V22h2.5v-9.03C11.34 12.84 13 11.12 13 9V2h-2zm5-3v8h2.5v8H21V2c-2.76 0-5 2.24-5 4"
-            ></path>
-          </svg>
-          <span id="food-count">50</span>
-          <div>Food</div>
-        </div>
-        <div class="resource">
-          <svg
-            focusable="false"
-            aria-hidden="true"
-            viewBox="0 0 24 24"
-            style="fill: rgb(46, 144, 176)"
-          >
-            <path
-              d="M17.66 8 12 2.35 6.34 8C4.78 9.56 4 11.64 4 13.64s.78 4.11 2.34 5.67 3.61 2.35 5.66 2.35 4.1-.79 5.66-2.35S20 15.64 20 13.64 19.22 9.56 17.66 8M6 14c.01-2 .62-3.27 1.76-4.4L12 5.27l4.24 4.38C17.38 10.77 17.99 12 18 14z"
-            ></path>
-          </svg>
-          <span id="Water-count">50</span>
-          <div>Water</div>
+        <div class="astronauts-thumbs">
+          <div class="astronaut-thumb" id="neil-armstrong">
+            <div class="menu-btn">
+              <div class="tooltip">Neil Armstrong</div>
+              <img src="./public/assets/astronautThumb.png" />
+              <img style="display: none" src="./public/assets/artemisRoverThumb.png" />
+            </div>
+          </div>
+          <div class="astronaut-thumb" id="buzz-aldrin">
+            <div class="menu-btn">
+              <div class="tooltip">Buzz Aldrin</div>
+              <img src="./public/assets/astronautThumb.png" />
+              <img style="display: none" src="./public/assets/artemisRoverThumb.png" />
+            </div>
+          </div>
+          <div class="astronaut-thumb" id="michael-collins">
+            <div class="menu-btn">
+              <div class="tooltip">Michael Collins</div>
+              <img src="./public/assets/astronautThumb.png" />
+              <img style="display: none" src="./public/assets/artemisRoverThumb.png" />
+            </div>
+          </div>
         </div>
       </div>
-      <div style="display: flex; max-width: 1080px;margin: auto;justify-content: space-between;width: 100%;">
+      <div class="menu-container">
         <div id="main-menu" class="gui-menu">
           <button class="gui-btn" data-action="buildings">Buildings</button>
           <button class="gui-btn" data-action="test">Test</button>
@@ -83,8 +108,8 @@
             </div>
           </div>
         </div>
-        <div id="leave-rover-btn" class="gui-btn"  style="display: none;">Leave Rover</button>
-      </div> 
+        <div id="leave-rover-btn" class="gui-btn">Leave Rover</div>
+      </div>
     </div>
   </body>
   <style>
@@ -103,16 +128,25 @@
       touch-action: none;
       display: block;
     }
-
+    .top-container {
+      border-bottom: 1px solid black;
+      max-width: 1200px;
+      margin: auto;
+      width: 100%;
+      display: flex;
+      justify-content: space-between;
+      padding-bottom: 15px;
+    }
+    .astronauts-thumbs {
+      display: flex;
+      gap: 12px;
+    }
     #resource-bar {
       height: 56px;
-      width: 100%;
-      margin: auto;
       display: flex;
       align-items: center;
       z-index: 10000;
       color: #eee;
-      max-width: 1080px;
       box-sizing: border-box;
       padding: 6px 0px;
       pointer-events: none;
@@ -148,9 +182,7 @@
       bottom: 0;
       width: 100vw;
       box-sizing: border-box;
-      padding: 70px 20px;
-      padding-top: 20px;
-
+      padding: 15px 0;
       display: flex;
       flex-direction: column;
       justify-content: center;
@@ -165,23 +197,18 @@
     #sub-menu {
       display: flex;
       gap: 12px;
-      align-items: center;
       width: 100%;
-      max-width: 1080px;
-      margin: 0 auto;
+      max-width: 1200px;
       box-sizing: border-box;
+      margin: 0 auto;
       pointer-events: auto;
-    }
-
-    #sub-menu {
-      flex-direction: column;
-      align-items: flex-start;
     }
 
     .hidden {
       display: none !important;
     }
 
+    .astronaut-thumb.active .menu-btn,
     .model-btn.active,
     .gui-btn:hover,
     .menu-btn:hover,
@@ -192,10 +219,12 @@
       border-color: #888 !important;
       background: #4b4b4b !important;
     }
+
     .gui-btn,
     .menu-btn,
     .model-btn,
     .menu-btn.model-btn {
+      box-sizing: border-box;
       width: 80px;
       height: 80px;
       padding: 4px;
@@ -208,6 +237,7 @@
       color: white;
       font-size: 16px;
     }
+
     .back-btn {
       width: 68px;
       height: 68px;
@@ -226,6 +256,7 @@
       display: block;
     }
 
+    .astronaut-thumb img,
     .model-btn img,
     .menu-btn img {
       width: 100%;
@@ -242,6 +273,7 @@
       max-height: 100px;
       padding-right: 6px;
     }
+
     .back-btn .tooltip,
     .model-btn .tooltip,
     .menu-btn .tooltip {
@@ -257,13 +289,25 @@
       pointer-events: none;
       margin-bottom: 8px;
     }
+    .astronaut-thumb.active .menu-btn .tooltip,
     .back-btn:hover .tooltip,
     .model-btn:hover .tooltip,
     .menu-btn:hover .tooltip {
       opacity: 1;
     }
+
+    .menu-container {
+      display: flex;
+      max-width: 1200px;
+      margin: 0 auto;
+      margin-top: 15px;
+      justify-content: space-between;
+      width: 100%;
+    }
+
     #leave-rover-btn {
       text-align: center;
+      display: none;
     }
   </style>
 </html>
