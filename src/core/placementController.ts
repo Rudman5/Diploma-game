@@ -1,5 +1,6 @@
 import * as BABYLON from '@babylonjs/core';
 import { Astronaut } from './astronaut';
+import { Rover } from './rover';
 
 export class PlacementController {
   private scene: BABYLON.Scene;
@@ -12,15 +13,12 @@ export class PlacementController {
   private pointerObserver?: BABYLON.Observer<BABYLON.PointerInfo>;
   private rotationObserver?: BABYLON.Observer<BABYLON.Scene>;
   private keyboardObserver?: BABYLON.Observer<BABYLON.KeyboardInfo>;
-
-  // NavMesh obstacles
   private obstacles: any[] = [];
 
   constructor(scene: BABYLON.Scene) {
     this.scene = scene;
     this.highlightLayer = new BABYLON.HighlightLayer('hl', scene);
 
-    // Escape cancels placement
     this.keyboardObserver = this.scene.onKeyboardObservable.add((kbInfo) => {
       if (kbInfo.type === BABYLON.KeyboardEventTypes.KEYDOWN && kbInfo.event.key === 'Escape') {
         this.cancelPlacement();
@@ -65,13 +63,11 @@ export class PlacementController {
     this.pointerObserver = this.scene.onPointerObservable.add(async (pi: BABYLON.PointerInfo) => {
       if (!this.currentRoot) return;
 
-      // Rotation
       if (pi.type === BABYLON.PointerEventTypes.POINTERDOWN && pi.event.button === 2)
         this.rotating = true;
       if (pi.type === BABYLON.PointerEventTypes.POINTERUP && pi.event.button === 2)
         this.rotating = false;
 
-      // Moving placement
       if (pi.type === BABYLON.PointerEventTypes.POINTERMOVE && !this.rotating) {
         const pick = this.scene.pick(
           this.scene.pointerX,
@@ -88,12 +84,10 @@ export class PlacementController {
         }
         root.position.copyFrom(pos);
 
-        // Slope check
         const normal = pick.getNormal(true) ?? BABYLON.Vector3.Up();
         const slope = Math.acos(BABYLON.Vector3.Dot(normal, BABYLON.Vector3.Up()));
         canPlace = slope <= maxSlope;
 
-        // Collision with other placed objects
         const bboxA = root.getHierarchyBoundingVectors(true);
         for (const bboxB of this.placedBBoxes) {
           if (
@@ -109,7 +103,6 @@ export class PlacementController {
           }
         }
 
-        // Highlight
         this.highlightLayer.removeAllMeshes();
         for (const mesh of meshes)
           this.highlightLayer.addMesh(
@@ -117,7 +110,6 @@ export class PlacementController {
             canPlace ? BABYLON.Color3.Green() : BABYLON.Color3.Red()
           );
 
-        // Align rotation
         const forward = new BABYLON.Vector3(0, 0, 1);
         const right = BABYLON.Vector3.Cross(forward, normal).normalize();
         const correctedForward = BABYLON.Vector3.Cross(normal, right).normalize();
@@ -125,9 +117,9 @@ export class PlacementController {
         root.rotation = BABYLON.Vector3.RotationFromAxis(right, normal, correctedForward);
       }
 
-      // Confirm placement
       if (pi.type === BABYLON.PointerEventTypes.POINTERDOWN && pi.event.button === 0 && canPlace) {
         for (const astro of Astronaut.allAstronauts) astro.stopWalk();
+        Rover.selectedRover?.stopMove();
         this.currentRoot!.freezeWorldMatrix();
         this.placedObjects.push(this.currentRoot!);
         const bbox = this.currentRoot!.getHierarchyBoundingVectors(true);
@@ -139,14 +131,15 @@ export class PlacementController {
         if (crowd && navPlugin) {
           const center = this.currentRoot!.position.clone();
           const size = this.currentRoot!.getHierarchyBoundingVectors(true);
+          console.log(Math.max(size.max.x - size.min.x, size.max.z - size.min.z) / 2);
           const agentParams: BABYLON.IAgentParameters = {
             radius: Math.max(size.max.x - size.min.x, size.max.z - size.min.z) / 2,
             height: size.max.y - size.min.y,
             maxSpeed: 0,
             maxAcceleration: 0,
-            collisionQueryRange: Math.max(size.max.x - size.min.x, size.max.z - size.min.z),
-            pathOptimizationRange: 1,
-            separationWeight: 0,
+            collisionQueryRange: Math.max(size.max.x - size.min.x, size.max.z - size.min.z) * 2,
+            pathOptimizationRange: 10,
+            separationWeight: 50,
           };
 
           const agentIndex = crowd.addAgent(center, agentParams, this.currentRoot!);

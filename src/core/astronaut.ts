@@ -11,6 +11,7 @@ export class Astronaut {
   private _hl?: BABYLON.HighlightLayer;
   private groundMesh?: BABYLON.GroundMesh;
   private crowdAgent?: number;
+  private shovelParts?: BABYLON.AbstractMesh[];
 
   public rover?: Rover;
   public id: string;
@@ -27,7 +28,7 @@ export class Astronaut {
   }
 
   /** Load the 3D model and animations */
-  async load(modelName = 'astronaut.glb', rootUrl = './models/') {
+  async load(modelName = 'astronautLatest.glb', rootUrl = './models/') {
     const result = await BABYLON.SceneLoader.ImportMeshAsync('', rootUrl, modelName, this.scene);
 
     this.mesh = result.meshes[0];
@@ -44,7 +45,8 @@ export class Astronaut {
         this.mesh.position.y;
       this.mesh.rotation.y = Math.PI;
     }
-
+    this.shovelParts = this.mesh.getChildMeshes().filter((m) => m.name.startsWith('Shovel_'));
+    this.hideShovel();
     this.addCrowdAgent();
   }
 
@@ -69,7 +71,7 @@ export class Astronaut {
       maxAcceleration: 8,
       collisionQueryRange: 10,
       pathOptimizationRange: 10,
-      separationWeight: 10,
+      separationWeight: 20,
     };
 
     this.crowdAgent = crowd.addAgent(nearest, agentParams, this.mesh);
@@ -100,7 +102,7 @@ export class Astronaut {
 
     crowd.agentGoto(agent, navTarget);
 
-    this.animations.get('Walking')?.start(true);
+    this.playAnimation('Walking');
 
     if (this.moveObserver) scene.onBeforeRenderObservable.remove(this.moveObserver);
     this.moveObserver = scene.onBeforeRenderObservable.add(() => {
@@ -111,29 +113,34 @@ export class Astronaut {
       if (pos) this.mesh.position.copyFrom(pos);
 
       const vel = crowd.getAgentVelocity(agent);
+
+      const velXZ = new BABYLON.Vector3(vel.x, 0, vel.z);
+      const velLen = velXZ.length();
+      if (velLen > 0.05) {
+        const targetYaw = Math.atan2(velXZ.x, velXZ.z) + Math.PI;
+        if (!this.mesh.rotationQuaternion)
+          this.mesh.rotationQuaternion = BABYLON.Quaternion.Identity();
+
+        BABYLON.Quaternion.SlerpToRef(
+          this.mesh.rotationQuaternion,
+          BABYLON.Quaternion.RotationYawPitchRoll(targetYaw, 0, 0),
+          0.2,
+          this.mesh.rotationQuaternion
+        );
+      }
+
       const distanceToTarget = BABYLON.Vector3.Distance(this.mesh.position, navTarget);
       const threshold = 0.05;
 
-      if (distanceToTarget < 1 || vel.length() < threshold) {
-        this.animations.get('Walking')?.stop();
-        this.animations.get('Idle')?.start(true);
+      if (distanceToTarget < 0.5 || vel.length() < threshold) {
+        this.playAnimation('Idle');
 
         this.mesh.position.copyFrom(navTarget);
         callback?.();
 
         scene.onBeforeRenderObservable.remove(this.moveObserver!);
         this.moveObserver = undefined;
-      } else if (vel.length() > threshold) {
-        const dirXZ = new BABYLON.Vector3(vel.x, 0, vel.z).normalize();
-        const targetYaw = Math.atan2(dirXZ.x, dirXZ.z) + Math.PI;
-        if (!this.mesh.rotationQuaternion)
-          this.mesh.rotationQuaternion = BABYLON.Quaternion.Identity();
-        BABYLON.Quaternion.SlerpToRef(
-          this.mesh.rotationQuaternion,
-          BABYLON.Quaternion.RotationYawPitchRoll(targetYaw, 0, 0),
-          0.1,
-          this.mesh.rotationQuaternion
-        );
+        return;
       }
     });
   }
@@ -151,8 +158,7 @@ export class Astronaut {
       this.crowdAgent = undefined;
     }
 
-    this.animations.get('Walking')?.stop();
-    this.animations.get('Idle')?.start(true);
+    this.playAnimation('Idle');
   }
 
   enterRover(rover: Rover) {
@@ -234,5 +240,26 @@ export class Astronaut {
   private getHighlightLayer() {
     if (!this._hl) this._hl = new BABYLON.HighlightLayer('hl', this.scene);
     return this._hl;
+  }
+
+  playAnimation(name: string) {
+    this.animations.forEach((a) => a.stop());
+    if (name !== 'Digging') {
+      this.hideShovel();
+    }
+
+    if (name === 'Digging') {
+      this.showShovel();
+    }
+
+    this.animations.get(name)?.start(true);
+  }
+
+  hideShovel() {
+    this.shovelParts?.forEach((m) => m.setEnabled(false));
+  }
+
+  showShovel() {
+    this.shovelParts?.forEach((m) => m.setEnabled(true));
   }
 }

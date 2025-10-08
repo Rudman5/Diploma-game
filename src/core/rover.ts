@@ -5,13 +5,13 @@ import { hideLeaveButton, showLeaveButton } from './createGui';
 export class Rover {
   public mesh!: BABYLON.AbstractMesh;
   private scene: BABYLON.Scene;
-  private moveObserver?: BABYLON.Observer<BABYLON.Scene>;
-  private _hl?: BABYLON.HighlightLayer;
   private groundMesh?: BABYLON.GroundMesh;
   private crowdAgent?: number;
+  private moveObserver?: BABYLON.Observer<BABYLON.Scene>;
+  private _hl?: BABYLON.HighlightLayer;
 
   public engineSound?: BABYLON.StaticSound;
-  public occupiedBy: Astronaut | undefined = undefined;
+  public occupiedBy?: Astronaut;
   public static selectedRover: Rover | null = null;
 
   constructor(scene: BABYLON.Scene, groundMesh: BABYLON.GroundMesh) {
@@ -26,22 +26,168 @@ export class Rover {
     this.mesh.isPickable = true;
     this.mesh.getChildMeshes().forEach((m) => (m.isPickable = true));
     this.mesh.checkCollisions = true;
+
     if (this.groundMesh) {
-      this.mesh.position.y =
-        this.groundMesh.getHeightAtCoordinates(this.mesh.position.x, this.mesh.position.z) ??
-        this.mesh.position.y;
+      const groundY = this.groundMesh.getHeightAtCoordinates(
+        this.mesh.position.x,
+        this.mesh.position.z
+      );
+      if (typeof groundY === 'number') this.mesh.position.y = groundY;
     }
+
     await this.loadEngineSound();
+    this.addCrowdAgent();
+  }
+
+  addCrowdAgent() {
+    if (this.crowdAgent) return;
+
+    const scene: any = this.scene;
+    const crowd: BABYLON.ICrowd | undefined = scene.crowd;
+    const navPlugin: BABYLON.RecastJSPlugin | undefined = scene.navigationPlugin;
+    if (!crowd || !navPlugin?.navMesh) return;
+
+    let nearest = navPlugin.getClosestPoint(this.mesh.position);
+    if (!nearest || !isFinite(nearest.x) || nearest.equals(BABYLON.Vector3.Zero())) {
+      nearest = this.mesh.position.clone();
+    }
+
+    const agentParams: BABYLON.IAgentParameters = {
+      radius: 2,
+      height: 2,
+      maxSpeed: 10,
+      maxAcceleration: 8,
+      collisionQueryRange: 30,
+      pathOptimizationRange: 10,
+      separationWeight: 20,
+    };
+
+    this.crowdAgent = crowd.addAgent(nearest, agentParams, this.mesh);
+    crowd.agentTeleport(this.crowdAgent, nearest);
+  }
+
+  async driveTo(
+    target: BABYLON.Vector3,
+    speed = 12,
+    callback?: () => void,
+    deselectOnComplete = false
+  ) {
+    if (!this.mesh) return;
+
+    const scene: any = this.scene;
+    const navPlugin: BABYLON.RecastJSPlugin | undefined = scene.navigationPlugin;
+    const crowd: BABYLON.ICrowd | undefined = scene.crowd;
+    if (!navPlugin?.navMesh || !crowd) {
+      console.warn('Crowd or navmesh not available.');
+      return;
+    }
+
+    this.addCrowdAgent();
+    const agent = this.crowdAgent!;
+    const ground = scene.getMeshByName('ground') as any;
+
+    let navTarget = navPlugin.getClosestPoint(target) ?? target.clone();
+    if (ground?.getHeightAtCoordinates) {
+      const gy = ground.getHeightAtCoordinates(navTarget.x, navTarget.z);
+      if (typeof gy === 'number') navTarget.y = gy;
+    }
+
+    crowd.agentGoto(agent, navTarget);
+    if (this.engineSound) this.engineSound.play();
+
+    if (this.moveObserver) scene.onBeforeRenderObservable.remove(this.moveObserver);
+
+    // For smoothing rotation around obstacles
+    const smoothDir = new BABYLON.Vector3();
+
+    this.moveObserver = scene.onBeforeRenderObservable.add(() => {
+      const dt = scene.getEngine().getDeltaTime() / 1000;
+      crowd.update(dt);
+
+      const pos = crowd.getAgentPosition(agent);
+      if (pos) {
+        this.mesh.position.copyFrom(pos);
+        const gy = ground?.getHeightAtCoordinates?.(pos.x, pos.z);
+        if (typeof gy === 'number') this.mesh.position.y = gy;
+      }
+
+      const vel = crowd.getAgentVelocity(agent);
+      if (!vel) return;
+
+      const velXZ = new BABYLON.Vector3(vel.x, 0, vel.z);
+      const velLen = velXZ.length();
+
+      BABYLON.Vector3.LerpToRef(smoothDir, velXZ, 0.25, smoothDir);
+
+      if (smoothDir.length() > 0.05) {
+        const dirNorm = smoothDir.normalize();
+        const targetYaw = Math.atan2(dirNorm.x, dirNorm.z);
+        if (!this.mesh.rotationQuaternion)
+          this.mesh.rotationQuaternion = BABYLON.Quaternion.Identity();
+
+        BABYLON.Quaternion.SlerpToRef(
+          this.mesh.rotationQuaternion,
+          BABYLON.Quaternion.RotationYawPitchRoll(targetYaw, 0, 0),
+          0.2,
+          this.mesh.rotationQuaternion
+        );
+      }
+
+      const distanceToTarget = BABYLON.Vector3.Distance(this.mesh.position, navTarget);
+      const arriveDist = 1.5;
+      const speedThreshold = 0.05;
+
+      if (distanceToTarget < arriveDist || velLen < speedThreshold) {
+        if (this.engineSound) this.engineSound.stop();
+
+        // Stop rotation and clean up safely
+        this.mesh.position.copyFrom(navTarget);
+
+        if (crowd && this.crowdAgent != null) {
+          crowd.removeAgent(this.crowdAgent);
+          this.crowdAgent = undefined;
+        }
+
+        scene.onBeforeRenderObservable.remove(this.moveObserver!);
+        this.moveObserver = undefined;
+
+        callback?.();
+        if (deselectOnComplete) this.deselect();
+      }
+    });
+  }
+
+  stopMove() {
+    const scene: any = this.scene;
+    if (this.moveObserver) {
+      scene.onBeforeRenderObservable.remove(this.moveObserver);
+      this.moveObserver = undefined;
+    }
+
+    const crowd: BABYLON.ICrowd | undefined = scene.crowd;
+    if (crowd && this.crowdAgent != null) {
+      crowd.removeAgent(this.crowdAgent);
+      this.crowdAgent = undefined;
+    }
+
+    if (this.engineSound) this.engineSound.stop();
+  }
+
+  async loadEngineSound() {
+    const sound = await BABYLON.CreateSoundAsync('roverEngine', './sounds/roverSound.mp3', {
+      loop: true,
+      autoplay: false,
+      volume: 0.5,
+    });
+    this.engineSound = sound;
   }
 
   containsMesh(mesh: BABYLON.AbstractMesh) {
     return !!this.mesh && mesh.isDescendantOf(this.mesh);
   }
 
-  async select() {
+  select() {
     if (!this.mesh) return;
-    if (this.engineSound) this.engineSound.play();
-
     const hl = this.getHighlightLayer();
     hl.addMesh(this.mesh as BABYLON.Mesh, BABYLON.Color3.Green());
     this.mesh
@@ -53,13 +199,9 @@ export class Rover {
 
   deselect() {
     if (!this.mesh) return;
-    if (this.engineSound) {
-      this.engineSound.stop();
-    }
     const hl = this.getHighlightLayer();
     hl.removeMesh(this.mesh as BABYLON.Mesh);
     this.mesh.getChildMeshes().forEach((m) => hl.removeMesh(m as BABYLON.Mesh));
-
     if (Rover.selectedRover === this) Rover.selectedRover = null;
     hideLeaveButton();
   }
@@ -67,142 +209,5 @@ export class Rover {
   private getHighlightLayer() {
     if (!this._hl) this._hl = new BABYLON.HighlightLayer('hl_rover', this.scene);
     return this._hl;
-  }
-
-  async driveTo(
-    target: BABYLON.Vector3,
-    speed = 3,
-    callback?: () => void,
-    deselectOnComplete = false
-  ) {
-    if (!this.mesh) return;
-
-    const scene = this.scene;
-    const navPlugin: BABYLON.RecastJSPlugin | undefined = (scene as any).navigationPlugin;
-    const crowd: BABYLON.ICrowd | undefined = (scene as any).crowd;
-
-    if (!navPlugin || !navPlugin.navMesh) {
-      console.warn('NavMesh not available, falling back to direct move.');
-      return;
-    }
-
-    if (!crowd) {
-      console.warn('Crowd system not initialized.');
-      return;
-    }
-
-    let agent = this.crowdAgent;
-    const agentParams: BABYLON.IAgentParameters = {
-      radius: 2,
-      height: 2,
-      maxSpeed: speed,
-      maxAcceleration: 10,
-      collisionQueryRange: 10,
-      pathOptimizationRange: 10,
-      separationWeight: 5,
-    };
-
-    const start = this.mesh.position.clone();
-
-    if (!agent) {
-      let nearest = navPlugin.getClosestPoint(start);
-      if (!nearest || !isFinite(nearest.x) || nearest.equals(BABYLON.Vector3.Zero())) {
-        nearest = start.clone();
-      }
-
-      agent = crowd.addAgent(nearest, agentParams, this.mesh);
-      this.crowdAgent = agent;
-    }
-
-    let navTarget = navPlugin.getClosestPoint(target);
-    if (!navTarget || !isFinite(navTarget.x) || navTarget.equals(BABYLON.Vector3.Zero())) {
-      navTarget = target.clone();
-      const ground = scene.getMeshByName('ground') as any;
-      if (ground && typeof ground.getHeightAtCoordinates === 'function') {
-        const gy = ground.getHeightAtCoordinates(navTarget.x, navTarget.z);
-        if (typeof gy === 'number') navTarget.y = gy;
-      }
-    }
-
-    crowd.agentGoto(agent, navTarget);
-    if (this.moveObserver) {
-      scene.onBeforeRenderObservable.remove(this.moveObserver);
-      this.moveObserver = undefined;
-    }
-
-    this.moveObserver = scene.onBeforeRenderObservable.add(() => {
-      const dt = scene.getEngine().getDeltaTime() / 1000;
-      crowd.update(dt);
-
-      const agentPos = crowd.getAgentPosition(agent);
-      if (agentPos) {
-        this.mesh.position.copyFrom(agentPos);
-        const groundY = (scene.getMeshByName('ground') as any)?.getHeightAtCoordinates?.(
-          agentPos.x,
-          agentPos.z
-        );
-        if (typeof groundY === 'number') this.mesh.position.y = groundY;
-      }
-
-      const vel = crowd.getAgentVelocity(agent);
-      const distanceToTarget = BABYLON.Vector3.Distance(this.mesh.position, navTarget);
-      const speedThreshold = 0.05;
-
-      if (distanceToTarget < 0.3 || vel.length() < speedThreshold) {
-        this.mesh.position.copyFrom(navTarget);
-        if (this.engineSound) {
-          this.engineSound.stop();
-        }
-        if (callback) callback();
-        if (deselectOnComplete) this.deselect();
-
-        scene.onBeforeRenderObservable.remove(this.moveObserver!);
-        this.moveObserver = undefined;
-        return;
-      }
-
-      if (vel.length() > speedThreshold) {
-        const dirXZ = new BABYLON.Vector3(vel.x, 0, vel.z).normalize();
-        if (dirXZ.length() > 0) {
-          const targetYaw = Math.atan2(dirXZ.x, dirXZ.z); // keep Z-forward
-          const targetQuat = BABYLON.Quaternion.RotationYawPitchRoll(targetYaw, 0, 0);
-
-          if (!this.mesh.rotationQuaternion)
-            this.mesh.rotationQuaternion = BABYLON.Quaternion.Identity();
-
-          BABYLON.Quaternion.SlerpToRef(
-            this.mesh.rotationQuaternion,
-            targetQuat,
-            0.1,
-            this.mesh.rotationQuaternion
-          );
-        }
-      }
-    });
-  }
-
-  stopMove() {
-    if (this.moveObserver) {
-      this.scene.onBeforeRenderObservable.remove(this.moveObserver);
-      this.moveObserver = undefined;
-    }
-
-    const crowd: BABYLON.ICrowd | undefined = (this.scene as any).crowd;
-    const agent = this.crowdAgent;
-    if (crowd && agent !== undefined && agent !== null) {
-      crowd.removeAgent(agent);
-      this.crowdAgent = undefined;
-    }
-  }
-  async loadEngineSound() {
-    if (!this.mesh) return;
-
-    const sound = await BABYLON.CreateSoundAsync('roverEngine', './sounds/roverSound.mp3', {
-      loop: true,
-      autoplay: false,
-      volume: 0.5,
-    });
-
-    this.engineSound = sound;
   }
 }

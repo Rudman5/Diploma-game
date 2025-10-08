@@ -72,6 +72,7 @@ export async function createScene(engine: BABYLON.Engine, canvas: HTMLCanvasElem
     astro.mesh.position.set(data.x, 0, data.z);
     astro.mesh.position.y = ground.getHeightAtCoordinates(data.x, data.z) ?? 0;
     astro.addCrowdAgent();
+    astro.playAnimation('Idle');
   }
 
   setupAstronautThumbnails(scene, camera);
@@ -114,8 +115,6 @@ export async function createScene(engine: BABYLON.Engine, canvas: HTMLCanvasElem
         const entryPos = roverCenter.add(offsetDir.scale(2.5));
         selectedAstronaut.walkTo(entryPos, 2, () => {
           selectedAstronaut.enterRover(clickedRover);
-          clickedRover.select();
-          showLeaveButton();
         });
         selectedAstronaut.deselect();
         return;
