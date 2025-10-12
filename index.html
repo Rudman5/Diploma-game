@@ -11,7 +11,7 @@
     <div id="gui-container">
       <div class="top-container">
         <div id="resource-bar">
-          <div style="width: 100%" id="entity-name">Buzz Aldrin</div>
+          <div style="width: 100%" id="entity-name"></div>
           <!-- <div class="resource">
             <svg
               style="fill: rgb(255, 255, 0)"
@@ -110,6 +110,7 @@
           </div>
         </div>
         <div id="leave-rover-btn" class="gui-btn">Leave Rover</div>
+        <div id="destroy-building-btn" class="gui-btn">Destroy building</div>
       </div>
     </div>
   </body>
@@ -234,6 +235,7 @@
     .menu-btn,
     .model-btn,
     .menu-btn.model-btn {
+      text-align: center;
       box-sizing: border-box;
       width: 80px;
       height: 80px;
@@ -315,8 +317,8 @@
       width: 100%;
     }
 
+    #destroy-building-btn,
     #leave-rover-btn {
-      text-align: center;
       display: none;
     }
   </style>

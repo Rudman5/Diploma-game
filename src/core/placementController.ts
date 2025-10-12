@@ -1,6 +1,7 @@
 import * as BABYLON from '@babylonjs/core';
 import { Astronaut } from './astronaut';
 import { Rover } from './rover';
+import { hideDestroyButton, showDestroyButton, updateResourceInfo } from './createGui';
 
 const RESOURCE_COLORS: Record<string, BABYLON.Color3> = {
   water: BABYLON.Color3.FromHexString('#2e90b0'),
@@ -17,6 +18,7 @@ export class PlacementController {
   private placedBBoxes: { min: BABYLON.Vector3; max: BABYLON.Vector3 }[] = [];
   private highlightLayer: BABYLON.HighlightLayer;
   private resourceCounts: Record<string, number> = { water: 0, food: 0, oxygen: 0, energy: 0 };
+  private selectedBuilding: BABYLON.TransformNode | null = null;
 
   private pointerObserver?: BABYLON.Observer<BABYLON.PointerInfo>;
   private rotationObserver?: BABYLON.Observer<BABYLON.Scene>;
@@ -30,6 +32,33 @@ export class PlacementController {
     this.keyboardObserver = this.scene.onKeyboardObservable.add((kbInfo) => {
       if (kbInfo.type === BABYLON.KeyboardEventTypes.KEYDOWN && kbInfo.event.key === 'Escape') {
         this.cancelPlacement();
+        this.deselect();
+      }
+    });
+
+    this.scene.onPointerObservable.add((pi) => {
+      if (pi.type !== BABYLON.PointerEventTypes.POINTERPICK) return;
+      const pick = pi.pickInfo;
+
+      let clickedBuilding: BABYLON.TransformNode | null = null;
+      if (pick?.hit && pick.pickedMesh) {
+        clickedBuilding =
+          this.placedObjects.find((b) => b.getChildMeshes().includes(pick.pickedMesh!)) || null;
+      }
+
+      if (clickedBuilding) {
+        this.deselect();
+        this.selectedBuilding = clickedBuilding;
+        updateResourceInfo(clickedBuilding);
+        showDestroyButton(clickedBuilding, () => {
+          this.removeBuilding(clickedBuilding);
+          this.selectedBuilding = null;
+        });
+        for (const mesh of clickedBuilding.getChildMeshes()) {
+          this.highlightLayer.addMesh(mesh as BABYLON.Mesh, BABYLON.Color3.Green());
+        }
+      } else {
+        this.deselect();
       }
     });
   }
@@ -44,6 +73,7 @@ export class PlacementController {
       rotationSpeed?: number;
       maxSlope?: number;
       resource?: string;
+      name: string;
     }
   ): Promise<void> {
     if (this.currentRoot) this.cancelPlacement();
@@ -66,9 +96,12 @@ export class PlacementController {
       mesh.checkCollisions = true;
       mesh.parent = root;
     });
-
+    root.metadata = root.metadata || {};
+    if (options?.name) {
+      root.metadata.name = options.name;
+    }
     if (options?.resource) {
-      root.metadata = { resource: options.resource };
+      root.metadata.resource = options.resource;
     }
 
     const yOffset = options?.yOffset ?? 0.01;
@@ -203,6 +236,7 @@ export class PlacementController {
         }, 1000);
 
         this.cleanupPlacement();
+        this.deselect();
         if (onPlaced) onPlaced();
       }
     });
@@ -221,6 +255,7 @@ export class PlacementController {
     if (this.pointerObserver) this.scene.onPointerObservable.remove(this.pointerObserver);
     if (this.rotationObserver) this.scene.onBeforeRenderObservable.remove(this.rotationObserver);
     if (disposeCurrent && this.currentRoot) this.currentRoot.dispose();
+    this.deselect();
 
     if (this.currentRoot) {
       for (const mesh of this.currentRoot.getChildMeshes()) {
@@ -260,7 +295,37 @@ export class PlacementController {
 
       this.resourceCounts[resource] = (this.resourceCounts[resource] ?? 0) + 1;
       building.metadata.resourceCount = this.resourceCounts[resource];
-      console.log(`${resource} count:`, this.resourceCounts[resource]);
     }
+  }
+
+  private deselect() {
+    if (this.selectedBuilding) {
+      for (const mesh of this.selectedBuilding.getChildMeshes()) {
+        this.highlightLayer.removeMesh(mesh as BABYLON.Mesh);
+      }
+      this.selectedBuilding = null;
+    }
+    hideDestroyButton();
+  }
+
+  private removeBuilding(building: BABYLON.TransformNode) {
+    const index = this.placedObjects.indexOf(building);
+    if (index !== -1) {
+      this.placedObjects.splice(index, 1);
+      this.placedBBoxes.splice(index, 1);
+    }
+
+    if (building.metadata?.radiusMesh) {
+      building.metadata.radiusMesh.dispose();
+    }
+
+    if ((this.scene as any).crowd && this.obstacles[index] !== undefined) {
+      const crowd: BABYLON.ICrowd = (this.scene as any).crowd;
+      const agentIndex = this.obstacles[index];
+      crowd.removeAgent(agentIndex);
+      this.obstacles.splice(index, 1);
+    }
+
+    building.dispose();
   }
 }

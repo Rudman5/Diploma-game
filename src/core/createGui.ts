@@ -5,11 +5,11 @@ import { Rover } from './rover';
 import { moveCameraTo } from './createCamera';
 
 const modelFiles: Record<string, { name: string; file: string; img: string; resource?: string }> = {
-  apolloLunarModule: {
-    name: 'Apollo Lunar Module',
-    file: 'apolloLunarModule.glb',
-    img: 'apolloLunarThumb.png',
-  },
+  // apolloLunarModule: {
+  //   name: 'Apollo Lunar Module',
+  //   file: 'apolloLunarModule.glb',
+  //   img: 'apolloLunarThumb.png',
+  // },
   // artemisRover: { name: 'Artemis Rover', file: 'artemisRover.glb', img: 'artemisRoverThumb.png' },
   baseLarge: {
     name: 'Base Large',
@@ -104,7 +104,7 @@ export function createGui(placementController: PlacementController, ground: BABY
             btn.classList.remove('active');
             activeButton = null;
           },
-          { resource: data.resource }
+          { resource: data.resource, name: data.name }
         );
 
         btn.classList.add('active');
@@ -236,27 +236,57 @@ export function setupAstronautThumbnails(scene: BABYLON.Scene, camera: BABYLON.U
   });
 }
 
-export function updateResourceInfo(entity: Astronaut | Rover) {
+export function updateResourceInfo(entity: Astronaut | Rover | BABYLON.TransformNode) {
   if (!entity) return;
 
-  const res = entity.getResources?.() ?? {};
-
   const nameEl = document.getElementById('entity-name');
-  if (nameEl)
-    nameEl.textContent = entity instanceof Astronaut ? (entity.name ?? 'Astronaut') : 'Rover';
+  if (nameEl) {
+    if (entity instanceof Astronaut) {
+      nameEl.textContent = entity.name ?? 'Astronaut';
+    } else if (entity instanceof Rover) {
+      nameEl.textContent = 'Rover';
+    } else {
+      console.log(entity.metadata);
 
-  const energyEl = document.getElementById('oxygen-count');
-  if (energyEl && res.oxygen !== undefined) {
-    energyEl.textContent = `${Math.floor(res.oxygen)}`;
+      const buildingName = entity.metadata?.name ?? entity.name ?? 'Building';
+      nameEl.textContent = buildingName;
+    }
   }
 
-  const foodEl = document.getElementById('food-count');
-  if (foodEl && res.food !== undefined) {
-    foodEl.textContent = `${Math.floor(res.food)}`;
-  }
+  if (entity instanceof Astronaut || entity instanceof Rover) {
+    const res = entity.getResources?.() ?? {};
 
-  const waterEl = document.getElementById('water-count');
-  if (waterEl && res.water !== undefined) {
-    waterEl.textContent = `${Math.floor(res.water)}`;
+    const energyEl = document.getElementById('oxygen-count');
+    if (energyEl && res.oxygen !== undefined) energyEl.textContent = `${Math.floor(res.oxygen)}`;
+
+    const foodEl = document.getElementById('food-count');
+    if (foodEl && res.food !== undefined) foodEl.textContent = `${Math.floor(res.food)}`;
+
+    const waterEl = document.getElementById('water-count');
+    if (waterEl && res.water !== undefined) waterEl.textContent = `${Math.floor(res.water)}`;
+  } else {
+    const energyEl = document.getElementById('oxygen-count');
+    if (energyEl) energyEl.textContent = '-';
+    const foodEl = document.getElementById('food-count');
+    if (foodEl) foodEl.textContent = '-';
+    const waterEl = document.getElementById('water-count');
+    if (waterEl) waterEl.textContent = '-';
   }
+}
+
+export function showDestroyButton(building: BABYLON.TransformNode, onDestroy: () => void) {
+  const destroyBtn = document.getElementById('destroy-building-btn')!;
+  if (destroyBtn) destroyBtn.style.display = 'inline-flex';
+
+  const newBtn = destroyBtn.cloneNode(true) as HTMLButtonElement;
+  destroyBtn.parentNode!.replaceChild(newBtn, destroyBtn);
+  newBtn.onclick = () => {
+    onDestroy();
+    newBtn.style.display = 'none';
+  };
+}
+
+export function hideDestroyButton() {
+  const destroyBtn = document.getElementById('destroy-building-btn')!;
+  if (destroyBtn) destroyBtn.style.display = 'none';
 }
