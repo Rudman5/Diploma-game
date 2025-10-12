@@ -131,7 +131,6 @@ export class PlacementController {
         if (crowd && navPlugin) {
           const center = this.currentRoot!.position.clone();
           const size = this.currentRoot!.getHierarchyBoundingVectors(true);
-          console.log(Math.max(size.max.x - size.min.x, size.max.z - size.min.z) / 2);
           const agentParams: BABYLON.IAgentParameters = {
             radius: Math.max(size.max.x - size.min.x, size.max.z - size.min.z) / 2,
             height: size.max.y - size.min.y,

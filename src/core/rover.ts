@@ -1,6 +1,6 @@
 import * as BABYLON from '@babylonjs/core';
 import { Astronaut } from './astronaut';
-import { hideLeaveButton, showLeaveButton } from './createGui';
+import { hideLeaveButton, showLeaveButton, updateResourceInfo } from './createGui';
 
 export class Rover {
   public mesh!: BABYLON.AbstractMesh;
@@ -9,9 +9,19 @@ export class Rover {
   private crowdAgent?: number;
   private moveObserver?: BABYLON.Observer<BABYLON.Scene>;
   private _hl?: BABYLON.HighlightLayer;
+  private resources = {
+    oxygen: 500,
+    food: 500,
+    water: 500,
+  };
+  private resourceCapacity = {
+    oxygen: 500,
+    food: 500,
+    water: 500,
+  };
 
   public engineSound?: BABYLON.StaticSound;
-  public occupiedBy?: Astronaut;
+  public occupiedBy: Astronaut[] = [];
   public static selectedRover: Rover | null = null;
 
   constructor(scene: BABYLON.Scene, groundMesh: BABYLON.GroundMesh) {
@@ -53,13 +63,13 @@ export class Rover {
     }
 
     const agentParams: BABYLON.IAgentParameters = {
-      radius: 2,
+      radius: 3,
       height: 2,
       maxSpeed: 10,
       maxAcceleration: 8,
-      collisionQueryRange: 30,
-      pathOptimizationRange: 10,
-      separationWeight: 20,
+      collisionQueryRange: 20,
+      pathOptimizationRange: 20,
+      separationWeight: 5,
     };
 
     this.crowdAgent = crowd.addAgent(nearest, agentParams, this.mesh);
@@ -194,7 +204,8 @@ export class Rover {
       .getChildMeshes()
       .forEach((m) => hl.addMesh(m as BABYLON.Mesh, BABYLON.Color3.Green()));
     Rover.selectedRover = this;
-    showLeaveButton();
+    updateResourceInfo(this);
+    if (this.occupiedBy.length > 0) showLeaveButton();
   }
 
   deselect() {
@@ -209,5 +220,37 @@ export class Rover {
   private getHighlightLayer() {
     if (!this._hl) this._hl = new BABYLON.HighlightLayer('hl_rover', this.scene);
     return this._hl;
+  }
+
+  addOccupant(astronaut: Astronaut) {
+    this.occupiedBy.push(astronaut);
+    return true;
+  }
+
+  removeOccupant(astronaut: Astronaut) {
+    this.occupiedBy = this.occupiedBy.filter((a) => a !== astronaut);
+  }
+
+  getResources() {
+    return { ...this.resources };
+  }
+
+  refillResource(type: keyof typeof this.resources, amount: number) {
+    this.resources[type] = Math.min(this.resourceCapacity[type], this.resources[type] + amount);
+  }
+
+  consumeResource(type: keyof typeof this.resources, amount: number) {
+    const available = this.resources[type];
+    const consumed = Math.min(available, amount);
+    this.resources[type] -= consumed;
+    return consumed; // how much we actually could provide
+  }
+
+  hasResources(amounts: Partial<typeof this.resources>) {
+    for (const key in amounts) {
+      const k = key as keyof typeof this.resources;
+      if (this.resources[k] < (amounts[k] ?? 0)) return false;
+    }
+    return true;
   }
 }

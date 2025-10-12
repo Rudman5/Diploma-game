@@ -12,17 +12,31 @@ export class Astronaut {
   private groundMesh?: BABYLON.GroundMesh;
   private crowdAgent?: number;
   private shovelParts?: BABYLON.AbstractMesh[];
+  private resources = {
+    oxygen: 100,
+    food: 100,
+    water: 100,
+  };
+  private resourceConsumptionRates = {
+    oxygen: 0.05,
+    food: 0.01,
+    water: 0.02,
+  };
+  private resourceObserver?: BABYLON.Observer<BABYLON.Scene>;
 
+  public isAlive = true;
   public rover?: Rover;
   public id: string;
+  public name: string;
 
   public static allAstronauts: Astronaut[] = [];
   public static selectedAstronaut: Astronaut | null = null;
 
-  constructor(scene: BABYLON.Scene, groundMesh: BABYLON.GroundMesh, id: string) {
+  constructor(scene: BABYLON.Scene, groundMesh: BABYLON.GroundMesh, id: string, name: string) {
     this.scene = scene;
     this.groundMesh = groundMesh;
     this.id = id;
+    this.name = name;
 
     Astronaut.allAstronauts.push(this);
   }
@@ -69,9 +83,9 @@ export class Astronaut {
       height: 2,
       maxSpeed: 2,
       maxAcceleration: 8,
-      collisionQueryRange: 10,
+      collisionQueryRange: 20,
       pathOptimizationRange: 10,
-      separationWeight: 20,
+      separationWeight: 3,
     };
 
     this.crowdAgent = crowd.addAgent(nearest, agentParams, this.mesh);
@@ -164,10 +178,19 @@ export class Astronaut {
   enterRover(rover: Rover) {
     if (!this.mesh) return;
     this.rover = rover;
-    rover.occupiedBy = this;
+    rover.addOccupant(this);
 
     this.mesh.parent = rover.mesh;
     this.mesh.setEnabled(false);
+    const needed = { oxygen: 50, food: 30, water: 30 };
+
+    for (const key in needed) {
+      const type = key as keyof typeof needed;
+      const availableFromRover = rover.consumeResource(type, needed[type]);
+      this.refill(type, availableFromRover);
+    }
+    this.pauseResourceConsumption(true);
+
     showLeaveButton();
   }
 
@@ -202,7 +225,7 @@ export class Astronaut {
 
     this.mesh.parent = null;
     this.mesh.setEnabled(true);
-    rover.occupiedBy = undefined;
+    rover.removeOccupant(this);
     this.rover = undefined;
 
     this.addCrowdAgent();
@@ -211,7 +234,7 @@ export class Astronaut {
     if (crowd && this.crowdAgent) {
       crowd.agentTeleport(this.crowdAgent, exitWorld);
     }
-
+    this.pauseResourceConsumption(false);
     hideLeaveButton();
   }
 
@@ -261,5 +284,55 @@ export class Astronaut {
 
   showShovel() {
     this.shovelParts?.forEach((m) => m.setEnabled(true));
+  }
+
+  startResourceConsumption() {
+    if (this.resourceObserver) return;
+
+    this.resourceObserver = this.scene.onBeforeRenderObservable.add(() => {
+      if (!this.isAlive) return;
+
+      const dt = this.scene.getEngine().getDeltaTime() / 1000;
+
+      for (const key in this.resources) {
+        const rate = this.resourceConsumptionRates[key as keyof typeof this.resources];
+        this.resources[key as keyof typeof this.resources] -= rate * dt;
+        this.resources[key as keyof typeof this.resources] = Math.max(
+          0,
+          this.resources[key as keyof typeof this.resources]
+        );
+      }
+
+      if (this.resources.oxygen <= 0 || this.resources.food <= 0 || this.resources.water <= 0) {
+        this.die();
+      }
+    });
+  }
+
+  pauseResourceConsumption(paused: boolean) {
+    if (!this.resourceObserver) return;
+
+    if (paused) {
+      this.scene.onBeforeRenderObservable.remove(this.resourceObserver);
+      this.resourceObserver = undefined;
+    } else {
+      this.startResourceConsumption();
+    }
+  }
+
+  getResources() {
+    return { ...this.resources };
+  }
+
+  refill(resource: 'oxygen' | 'food' | 'water', amount: number) {
+    this.resources[resource] = Math.min(100, this.resources[resource] + amount);
+  }
+
+  die() {
+    if (!this.isAlive) return;
+    this.isAlive = false;
+    console.warn(`${this.id} has died due to lack of resources.`);
+    this.playAnimation('Dead');
+    this.stopWalk();
   }
 }

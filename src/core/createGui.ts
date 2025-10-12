@@ -107,7 +107,7 @@ export function setupLeaveButton() {
       console.warn('No astronaut found inside a rover.');
       return;
     }
-
+    astronaut.deselect();
     astronaut.exitRover();
     hideLeaveButton();
   };
@@ -160,6 +160,7 @@ export function setupAstronautThumbnails(scene: BABYLON.Scene, camera: BABYLON.U
           Astronaut.selectedAstronaut.deselect();
         if (Rover.selectedRover) Rover.selectedRover.deselect();
         astro.select();
+        updateResourceInfo(astro);
         moveCameraTo(camera, astro.mesh.position);
       }
       updateThumbnail();
@@ -212,4 +213,29 @@ export function setupAstronautThumbnails(scene: BABYLON.Scene, camera: BABYLON.U
 
     updateThumbnail();
   });
+}
+
+export function updateResourceInfo(entity: Astronaut | Rover) {
+  if (!entity) return;
+
+  const res = entity.getResources?.() ?? {};
+
+  const nameEl = document.getElementById('entity-name');
+  if (nameEl)
+    nameEl.textContent = entity instanceof Astronaut ? (entity.name ?? 'Astronaut') : 'Rover';
+
+  const energyEl = document.getElementById('oxygen-count');
+  if (energyEl && res.oxygen !== undefined) {
+    energyEl.textContent = `${Math.floor(res.oxygen)}`;
+  }
+
+  const foodEl = document.getElementById('food-count');
+  if (foodEl && res.food !== undefined) {
+    foodEl.textContent = `${Math.floor(res.food)}`;
+  }
+
+  const waterEl = document.getElementById('water-count');
+  if (waterEl && res.water !== undefined) {
+    waterEl.textContent = `${Math.floor(res.water)}`;
+  }
 }

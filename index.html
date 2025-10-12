@@ -11,6 +11,21 @@
     <div id="gui-container">
       <div class="top-container">
         <div id="resource-bar">
+          <div style="width: 100%" id="entity-name">Buzz Aldrin</div>
+          <!-- <div class="resource">
+            <svg
+              style="fill: rgb(255, 255, 0)"
+              focusable="false"
+              aria-hidden="true"
+              viewBox="0 0 24 24"
+            >
+              <path
+                d="M11 21h-1l1-7H7.5c-.58 0-.57-.32-.38-.66s.05-.08.07-.12C8.48 10.94 10.42 7.54 13 3h1l-1 7h3.5c.49 0 .56.33.47.51l-.07.15C12.96 17.55 11 21 11 21"
+              ></path>
+            </svg>
+            <span id="energy-count">100/100</span>
+            <div>Energy</div>
+          </div> -->
           <div class="resource">
             <svg
               focusable="false"
@@ -24,20 +39,6 @@
             </svg>
             <span id="oxygen-count">100</span>
             <div>Oxygen</div>
-          </div>
-          <div class="resource">
-            <svg
-              style="fill: rgb(255, 255, 0)"
-              focusable="false"
-              aria-hidden="true"
-              viewBox="0 0 24 24"
-            >
-              <path
-                d="M11 21h-1l1-7H7.5c-.58 0-.57-.32-.38-.66s.05-.08.07-.12C8.48 10.94 10.42 7.54 13 3h1l-1 7h3.5c.49 0 .56.33.47.51l-.07.15C12.96 17.55 11 21 11 21"
-              ></path>
-            </svg>
-            <span id="Energy-count">100/100</span>
-            <div>Energy</div>
           </div>
           <div class="resource">
             <svg
@@ -64,7 +65,7 @@
                 d="M17.66 8 12 2.35 6.34 8C4.78 9.56 4 11.64 4 13.64s.78 4.11 2.34 5.67 3.61 2.35 5.66 2.35 4.1-.79 5.66-2.35S20 15.64 20 13.64 19.22 9.56 17.66 8M6 14c.01-2 .62-3.27 1.76-4.4L12 5.27l4.24 4.38C17.38 10.77 17.99 12 18 14z"
               ></path>
             </svg>
-            <span id="Water-count">50</span>
+            <span id="water-count">50</span>
             <div>Water</div>
           </div>
         </div>
@@ -134,7 +135,15 @@
       margin: auto;
       width: 100%;
       display: flex;
+      flex-wrap: wrap;
       justify-content: space-between;
+      padding-bottom: 15px;
+    }
+    #entity-name {
+      font-size: 24px;
+      color: white;
+      font-style: italic;
+      text-shadow: 2px 4px 3px rgba(0, 0, 0, 0.3);
       padding-bottom: 15px;
     }
     .astronauts-thumbs {
@@ -144,7 +153,8 @@
     #resource-bar {
       height: 56px;
       display: flex;
-      align-items: center;
+      flex-wrap: wrap;
+      align-items: space-between;
       z-index: 10000;
       color: #eee;
       box-sizing: border-box;
@@ -161,7 +171,7 @@
       align-items: center;
       gap: 8px;
       pointer-events: auto;
-      padding: 0px 10px;
+      padding-right: 20px;
       font-size: 14px;
     }
 
