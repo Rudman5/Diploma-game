@@ -2,6 +2,13 @@ import * as BABYLON from '@babylonjs/core';
 import { Astronaut } from './astronaut';
 import { Rover } from './rover';
 
+const RESOURCE_COLORS: Record<string, BABYLON.Color3> = {
+  water: BABYLON.Color3.FromHexString('#2e90b0'),
+  food: BABYLON.Color3.FromHexString('#c9112d'),
+  oxygen: BABYLON.Color3.FromHexString('#27de48'),
+  energy: BABYLON.Color3.FromHexString('#ffff00'),
+};
+
 export class PlacementController {
   private scene: BABYLON.Scene;
   private currentRoot: BABYLON.TransformNode | null = null;
@@ -9,6 +16,7 @@ export class PlacementController {
   private placedObjects: BABYLON.TransformNode[] = [];
   private placedBBoxes: { min: BABYLON.Vector3; max: BABYLON.Vector3 }[] = [];
   private highlightLayer: BABYLON.HighlightLayer;
+  private resourceCounts: Record<string, number> = { water: 0, food: 0, oxygen: 0, energy: 0 };
 
   private pointerObserver?: BABYLON.Observer<BABYLON.PointerInfo>;
   private rotationObserver?: BABYLON.Observer<BABYLON.Scene>;
@@ -30,7 +38,13 @@ export class PlacementController {
     modelPath: string,
     groundMesh: BABYLON.Mesh,
     onPlaced?: () => void,
-    options?: { gridSize?: number; yOffset?: number; rotationSpeed?: number; maxSlope?: number }
+    options?: {
+      gridSize?: number;
+      yOffset?: number;
+      rotationSpeed?: number;
+      maxSlope?: number;
+      resource?: string;
+    }
   ): Promise<void> {
     if (this.currentRoot) this.cancelPlacement();
 
@@ -52,6 +66,10 @@ export class PlacementController {
       mesh.checkCollisions = true;
       mesh.parent = root;
     });
+
+    if (options?.resource) {
+      root.metadata = { resource: options.resource };
+    }
 
     const yOffset = options?.yOffset ?? 0.01;
     const gridSize = options?.gridSize ?? 0;
@@ -103,7 +121,6 @@ export class PlacementController {
           }
         }
 
-        this.highlightLayer.removeAllMeshes();
         for (const mesh of meshes)
           this.highlightLayer.addMesh(
             mesh,
@@ -120,10 +137,45 @@ export class PlacementController {
       if (pi.type === BABYLON.PointerEventTypes.POINTERDOWN && pi.event.button === 0 && canPlace) {
         for (const astro of Astronaut.allAstronauts) astro.stopWalk();
         Rover.selectedRover?.stopMove();
-        this.currentRoot!.freezeWorldMatrix();
         this.placedObjects.push(this.currentRoot!);
         const bbox = this.currentRoot!.getHierarchyBoundingVectors(true);
         this.placedBBoxes.push({ min: bbox.min.clone(), max: bbox.max.clone() });
+
+        if (this.currentRoot!.metadata?.resource) {
+          const resource = this.currentRoot!.metadata.resource;
+
+          const segments = 64;
+          const points: BABYLON.Vector3[] = [];
+          const width = Math.max(bbox.max.x - bbox.min.x, bbox.max.z - bbox.min.z);
+          const radius = width * 1.2;
+
+          const ground = groundMesh;
+          const pos = this.currentRoot!.getAbsolutePosition();
+          for (let i = 0; i <= segments; i++) {
+            const angle = (2 * Math.PI * i) / segments;
+            const x = pos.x + Math.cos(angle) * radius;
+            const z = pos.z + Math.sin(angle) * radius;
+
+            const pick = this.scene.pickWithRay(
+              new BABYLON.Ray(new BABYLON.Vector3(x, 1000, z), BABYLON.Vector3.Down(), 2000),
+              (m) => m === ground
+            );
+            const y = pick?.hit && pick.pickedPoint ? pick.pickedPoint.y + 0.05 : pos.y + 0.05;
+            points.push(new BABYLON.Vector3(x, y, z));
+          }
+
+          const circle = BABYLON.MeshBuilder.CreateLines(
+            `${resource}_radiusCircle_${Date.now()}`,
+            { points },
+            this.scene
+          );
+
+          circle.color = RESOURCE_COLORS[resource] ?? BABYLON.Color3.White();
+          circle.isPickable = false;
+          circle.alwaysSelectAsActiveMesh = false;
+
+          this.currentRoot!.metadata.radiusMesh = circle;
+        }
 
         const crowd: BABYLON.ICrowd | undefined = (this.scene as any).crowd;
         const navPlugin: any = (this.scene as any).navigationPlugin;
@@ -146,13 +198,15 @@ export class PlacementController {
           const dt = this.scene.getEngine().getDeltaTime() / 1000;
           crowd.update(dt);
         }
+        window.setInterval(() => {
+          this.updateResources();
+        }, 1000);
 
         this.cleanupPlacement();
         if (onPlaced) onPlaced();
       }
     });
 
-    // Rotation per frame
     this.rotationObserver = this.scene.onBeforeRenderObservable.add(() => {
       if (this.currentRoot && this.rotating) this.currentRoot.rotation.y += rotationSpeed;
     });
@@ -164,10 +218,15 @@ export class PlacementController {
   }
 
   private cleanupPlacement(disposeCurrent = false) {
-    this.highlightLayer.removeAllMeshes();
     if (this.pointerObserver) this.scene.onPointerObservable.remove(this.pointerObserver);
     if (this.rotationObserver) this.scene.onBeforeRenderObservable.remove(this.rotationObserver);
     if (disposeCurrent && this.currentRoot) this.currentRoot.dispose();
+
+    if (this.currentRoot) {
+      for (const mesh of this.currentRoot.getChildMeshes()) {
+        this.highlightLayer.removeMesh(mesh as BABYLON.Mesh);
+      }
+    }
 
     this.currentRoot = null;
     this.pointerObserver = undefined;
@@ -192,5 +251,16 @@ export class PlacementController {
     this.cancelPlacement();
     this.clearObstacles();
     if (this.keyboardObserver) this.scene.onKeyboardObservable.remove(this.keyboardObserver);
+  }
+
+  private updateResources() {
+    for (const building of this.placedObjects) {
+      const resource = building.metadata?.resource;
+      if (!resource) continue;
+
+      this.resourceCounts[resource] = (this.resourceCounts[resource] ?? 0) + 1;
+      building.metadata.resourceCount = this.resourceCounts[resource];
+      console.log(`${resource} count:`, this.resourceCounts[resource]);
+    }
   }
 }

@@ -4,20 +4,36 @@ import * as BABYLON from '@babylonjs/core';
 import { Rover } from './rover';
 import { moveCameraTo } from './createCamera';
 
-const modelFiles: Record<string, { name: string; file: string; img: string }> = {
+const modelFiles: Record<string, { name: string; file: string; img: string; resource?: string }> = {
   apolloLunarModule: {
     name: 'Apollo Lunar Module',
     file: 'apolloLunarModule.glb',
     img: 'apolloLunarThumb.png',
   },
   // artemisRover: { name: 'Artemis Rover', file: 'artemisRover.glb', img: 'artemisRoverThumb.png' },
-  baseLarge: { name: 'Base Large', file: 'baseLarge.glb', img: 'baseLargeThumb.png' },
-  buildingPod: { name: 'Building Pod', file: 'buildingPod.glb', img: 'buildingPodThumb.png' },
-  laboratory: { name: 'Laboratory', file: 'laboratory.glb', img: 'laboratoryThumb.png' },
+  baseLarge: {
+    name: 'Base Large',
+    file: 'baseLarge.glb',
+    img: 'baseLargeThumb.png',
+    resource: 'water',
+  },
+  buildingPod: {
+    name: 'Building Pod',
+    file: 'buildingPod.glb',
+    img: 'buildingPodThumb.png',
+    resource: 'food',
+  },
+  laboratory: {
+    name: 'Laboratory',
+    file: 'laboratory.glb',
+    img: 'laboratoryThumb.png',
+    resource: 'oxygen',
+  },
   solarPanelStructure: {
     name: 'Solar Panel Structure',
     file: 'solarPanelStructure.glb',
     img: 'solarPanelStructureThumb.png',
+    resource: 'energy',
   },
   livingQuarters: {
     name: 'Living Quarters',
@@ -81,10 +97,15 @@ export function createGui(placementController: PlacementController, ground: BABY
           activeButton.classList.remove('active');
         }
 
-        placementController.placeModelOnClick(data.file, ground, () => {
-          btn.classList.remove('active');
-          activeButton = null;
-        });
+        placementController.placeModelOnClick(
+          data.file,
+          ground,
+          () => {
+            btn.classList.remove('active');
+            activeButton = null;
+          },
+          { resource: data.resource }
+        );
 
         btn.classList.add('active');
         activeButton = btn;
