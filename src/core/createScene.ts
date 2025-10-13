@@ -97,6 +97,7 @@ export async function createScene(engine: BABYLON.Engine, canvas: HTMLCanvasElem
     if (!pick?.hit) return;
 
     const selectedAstronaut = Astronaut.selectedAstronaut;
+    const selectedRover = Rover.selectedRover;
     const clickedAstronaut = Astronaut.allAstronauts.find((a) =>
       a.containsMesh(pick.pickedMesh as BABYLON.AbstractMesh)
     );
@@ -122,10 +123,17 @@ export async function createScene(engine: BABYLON.Engine, canvas: HTMLCanvasElem
 
     if (event.button === 2 && !handled) {
       if (selectedAstronaut && pick.pickedPoint) {
-        selectedAstronaut.walkTo(pick.pickedPoint, 2);
+        const roverCenter = rover.mesh.getAbsolutePosition();
+        const offsetDir = rover.mesh.getDirection(new BABYLON.Vector3(2.5, 0, 0));
+        const entryPos = roverCenter.add(offsetDir.scale(2.5));
+
+        selectedAstronaut.walkTo(entryPos, 2, () => {
+          rover.addOccupant(selectedAstronaut);
+          selectedAstronaut.enterRover(rover);
+        });
         selectedAstronaut.deselect();
         handled = true;
-      } else if (rover.occupiedBy.length > 0 && pick.pickedPoint) {
+      } else if (selectedRover && pick.pickedPoint) {
         rover.driveTo(pick.pickedPoint, 12);
         rover.deselect();
         handled = true;
