@@ -1,6 +1,6 @@
 import * as BABYLON from '@babylonjs/core';
 import { Rover } from './rover';
-import { hideLeaveButton, showLeaveButton } from './createGui';
+import { hideLeaveButton, showLeaveButton } from '../core/createGui';
 
 export class Astronaut {
   public mesh!: BABYLON.AbstractMesh;

@@ -1,7 +1,8 @@
 import * as BABYLON from '@babylonjs/core';
 import { Astronaut } from './astronaut';
 import { Rover } from './rover';
-import { hideDestroyButton, showDestroyButton, updateResourceInfo } from './createGui';
+import { hideDestroyButton, showDestroyButton, updateResourceInfo } from '../core/createGui';
+import { ModelData, ModelMetadata } from '../types';
 
 const RESOURCE_COLORS: Record<string, BABYLON.Color3> = {
   water: BABYLON.Color3.FromHexString('#2e90b0'),
@@ -18,12 +19,13 @@ export class PlacementController {
   private placedBBoxes: { min: BABYLON.Vector3; max: BABYLON.Vector3 }[] = [];
   private highlightLayer: BABYLON.HighlightLayer;
   private resourceCounts: Record<string, number> = { water: 0, food: 0, oxygen: 0, energy: 0 };
-  private selectedBuilding: BABYLON.TransformNode | null = null;
 
   private pointerObserver?: BABYLON.Observer<BABYLON.PointerInfo>;
   private rotationObserver?: BABYLON.Observer<BABYLON.Scene>;
   private keyboardObserver?: BABYLON.Observer<BABYLON.KeyboardInfo>;
   private obstacles: any[] = [];
+
+  public selectedBuilding: BABYLON.TransformNode | null = null;
 
   constructor(scene: BABYLON.Scene) {
     this.scene = scene;
@@ -35,46 +37,13 @@ export class PlacementController {
         this.deselect();
       }
     });
-
-    this.scene.onPointerObservable.add((pi) => {
-      if (pi.type !== BABYLON.PointerEventTypes.POINTERPICK) return;
-      const pick = pi.pickInfo;
-
-      let clickedBuilding: BABYLON.TransformNode | null = null;
-      if (pick?.hit && pick.pickedMesh) {
-        clickedBuilding =
-          this.placedObjects.find((b) => b.getChildMeshes().includes(pick.pickedMesh!)) || null;
-      }
-
-      if (clickedBuilding) {
-        this.deselect();
-        this.selectedBuilding = clickedBuilding;
-        updateResourceInfo(clickedBuilding);
-        showDestroyButton(clickedBuilding, () => {
-          this.removeBuilding(clickedBuilding);
-          this.selectedBuilding = null;
-        });
-        for (const mesh of clickedBuilding.getChildMeshes()) {
-          this.highlightLayer.addMesh(mesh as BABYLON.Mesh, BABYLON.Color3.Green());
-        }
-      } else {
-        this.deselect();
-      }
-    });
   }
 
   public async placeModelOnClick(
     modelPath: string,
     groundMesh: BABYLON.Mesh,
     onPlaced?: () => void,
-    options?: {
-      gridSize?: number;
-      yOffset?: number;
-      rotationSpeed?: number;
-      maxSlope?: number;
-      resource?: string;
-      name: string;
-    }
+    metadata?: ModelMetadata
   ): Promise<void> {
     if (this.currentRoot) this.cancelPlacement();
 
@@ -90,24 +59,19 @@ export class PlacementController {
       return;
     }
 
-    const root = new BABYLON.TransformNode('modelRoot', this.scene);
+    const root = new BABYLON.TransformNode(metadata!.name, this.scene);
     this.currentRoot = root;
     meshes.forEach((mesh) => {
       mesh.checkCollisions = true;
       mesh.parent = root;
     });
-    root.metadata = root.metadata || {};
-    if (options?.name) {
-      root.metadata.name = options.name;
-    }
-    if (options?.resource) {
-      root.metadata.resource = options.resource;
-    }
+    console.log(metadata);
+    root.metadata = metadata;
 
-    const yOffset = options?.yOffset ?? 0.01;
-    const gridSize = options?.gridSize ?? 0;
-    const rotationSpeed = options?.rotationSpeed ?? 0.03;
-    const maxSlope = options?.maxSlope ?? 0.5;
+    const yOffset = 0.01;
+    const gridSize = 0;
+    const rotationSpeed = 0.03;
+    const maxSlope = 0.5;
 
     let canPlace = true;
 
@@ -206,7 +170,7 @@ export class PlacementController {
           circle.color = RESOURCE_COLORS[resource] ?? BABYLON.Color3.White();
           circle.isPickable = false;
           circle.alwaysSelectAsActiveMesh = false;
-
+          circle.setEnabled(false);
           this.currentRoot!.metadata.radiusMesh = circle;
         }
 
@@ -300,6 +264,10 @@ export class PlacementController {
 
   private deselect() {
     if (this.selectedBuilding) {
+      if (this.selectedBuilding.metadata?.radiusMesh) {
+        this.selectedBuilding.metadata.radiusMesh.setEnabled(false);
+      }
+
       for (const mesh of this.selectedBuilding.getChildMeshes()) {
         this.highlightLayer.removeMesh(mesh as BABYLON.Mesh);
       }
@@ -327,5 +295,32 @@ export class PlacementController {
     }
 
     building.dispose();
+  }
+  public handlePointerPick(pick: BABYLON.PickingInfo, event: PointerEvent) {
+    let clickedBuilding: BABYLON.TransformNode | null = null;
+    if (pick?.hit && pick.pickedMesh) {
+      clickedBuilding =
+        this.placedObjects.find((b) => b.getChildMeshes().includes(pick.pickedMesh!)) || null;
+    }
+
+    if (clickedBuilding) {
+      this.deselect();
+      this.selectedBuilding = clickedBuilding;
+      updateResourceInfo(clickedBuilding);
+      showDestroyButton(clickedBuilding, () => {
+        this.removeBuilding(clickedBuilding);
+        this.selectedBuilding = null;
+      });
+
+      if (clickedBuilding.metadata?.resource && clickedBuilding.metadata?.radiusMesh) {
+        clickedBuilding.metadata.radiusMesh.setEnabled(true);
+      }
+
+      for (const mesh of clickedBuilding.getChildMeshes()) {
+        this.highlightLayer.addMesh(mesh as BABYLON.Mesh, BABYLON.Color3.Green());
+      }
+    } else {
+      this.deselect();
+    }
   }
 }

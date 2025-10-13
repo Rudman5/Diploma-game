@@ -1,17 +1,17 @@
 import * as BABYLON from '@babylonjs/core';
 import '@babylonjs/loaders';
 import { createRTSCamera } from './createCamera';
-import { Astronaut } from './astronaut';
+import { Astronaut } from '../modelCreation/astronaut';
 import {
   createGui,
   hideLeaveButton,
+  hideResourceBar,
   setupAstronautThumbnails,
-  showLeaveButton,
   updateResourceInfo,
 } from './createGui';
-import { PlacementController } from './placementController';
+import { PlacementController } from '../modelCreation/placementController';
 import { createNavMesh } from './createNavMesh';
-import { Rover } from './rover';
+import { Rover } from '../modelCreation/rover';
 
 export async function createScene(engine: BABYLON.Engine, canvas: HTMLCanvasElement) {
   const scene = new BABYLON.Scene(engine);
@@ -94,79 +94,49 @@ export async function createScene(engine: BABYLON.Engine, canvas: HTMLCanvasElem
 
     const event = pointerInfo.event as PointerEvent;
     const pick = pointerInfo.pickInfo;
-    if (!pick?.hit || !pick.pickedMesh) return;
+    if (!pick?.hit) return;
 
     const selectedAstronaut = Astronaut.selectedAstronaut;
     const clickedAstronaut = Astronaut.allAstronauts.find((a) =>
       a.containsMesh(pick.pickedMesh as BABYLON.AbstractMesh)
     );
 
+    let handled = false;
+
     if (event.button === 0) {
       if (clickedAstronaut) {
         updateResourceInfo(clickedAstronaut);
         rover.deselect();
-
-        if (clickedAstronaut.rover) {
-          Astronaut.allAstronauts.forEach((a) => a.deselect());
-          rover.select();
-          return;
-        }
-
-        Astronaut.allAstronauts.forEach((a) => {
-          if (a !== clickedAstronaut) a.deselect();
-        });
-
         clickedAstronaut.select();
-        return;
-      }
-
-      if (rover.containsMesh(pick.pickedMesh as BABYLON.AbstractMesh)) {
+        handled = true;
+      } else if (rover.containsMesh(pick.pickedMesh as BABYLON.AbstractMesh)) {
         Astronaut.allAstronauts.forEach((a) => a.deselect());
-
         rover.select();
-        if (rover.occupiedBy.length > 0) showLeaveButton();
-        return;
+        handled = true;
+      } else {
+        Astronaut.allAstronauts.forEach((a) => a.deselect());
+        rover.deselect();
+        hideLeaveButton();
       }
-
-      Astronaut.allAstronauts.forEach((a) => a.deselect());
-      rover.deselect();
-      hideLeaveButton();
-      return;
     }
 
-    if (event.button === 2) {
-      if (
-        selectedAstronaut &&
-        !selectedAstronaut.rover &&
-        rover.containsMesh(pick.pickedMesh as BABYLON.AbstractMesh)
-      ) {
-        const roverCenter = rover.mesh.getAbsolutePosition();
-        const offsetDir = rover.mesh.getDirection(new BABYLON.Vector3(2.5, 0, 0));
-        const entryPos = roverCenter.add(offsetDir.scale(2.5));
-
-        selectedAstronaut.walkTo(entryPos, 2, () => {
-          rover.addOccupant(selectedAstronaut);
-          selectedAstronaut.enterRover(rover);
-
-          Astronaut.allAstronauts.forEach((a) => a.deselect());
-          rover.select();
-        });
-
-        selectedAstronaut.deselect();
-        return;
-      }
-
-      if ((selectedAstronaut?.rover || !selectedAstronaut) && pick.pickedPoint) {
-        rover.driveTo(pick.pickedPoint, 12);
-        rover.deselect();
-        return;
-      }
-
-      if (selectedAstronaut && !selectedAstronaut.rover && pick.pickedPoint) {
+    if (event.button === 2 && !handled) {
+      if (selectedAstronaut && pick.pickedPoint) {
         selectedAstronaut.walkTo(pick.pickedPoint, 2);
         selectedAstronaut.deselect();
-        return;
+        handled = true;
+      } else if (rover.occupiedBy.length > 0 && pick.pickedPoint) {
+        rover.driveTo(pick.pickedPoint, 12);
+        rover.deselect();
+        handled = true;
       }
+    }
+
+    placementController.handlePointerPick(pick, event);
+    if (placementController.selectedBuilding) handled = true;
+
+    if (!handled && pick.pickedPoint) {
+      hideResourceBar();
     }
   });
 

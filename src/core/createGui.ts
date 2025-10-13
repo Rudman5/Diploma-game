@@ -1,46 +1,9 @@
-import { Astronaut } from './astronaut';
-import { PlacementController } from './placementController';
+import { Astronaut } from '../modelCreation/astronaut';
+import { PlacementController } from '../modelCreation/placementController';
 import * as BABYLON from '@babylonjs/core';
-import { Rover } from './rover';
+import { Rover } from '../modelCreation/rover';
 import { moveCameraTo } from './createCamera';
-
-const modelFiles: Record<string, { name: string; file: string; img: string; resource?: string }> = {
-  // apolloLunarModule: {
-  //   name: 'Apollo Lunar Module',
-  //   file: 'apolloLunarModule.glb',
-  //   img: 'apolloLunarThumb.png',
-  // },
-  // artemisRover: { name: 'Artemis Rover', file: 'artemisRover.glb', img: 'artemisRoverThumb.png' },
-  baseLarge: {
-    name: 'Base Large',
-    file: 'baseLarge.glb',
-    img: 'baseLargeThumb.png',
-    resource: 'water',
-  },
-  buildingPod: {
-    name: 'Building Pod',
-    file: 'buildingPod.glb',
-    img: 'buildingPodThumb.png',
-    resource: 'food',
-  },
-  laboratory: {
-    name: 'Laboratory',
-    file: 'laboratory.glb',
-    img: 'laboratoryThumb.png',
-    resource: 'oxygen',
-  },
-  solarPanelStructure: {
-    name: 'Solar Panel Structure',
-    file: 'solarPanelStructure.glb',
-    img: 'solarPanelStructureThumb.png',
-    resource: 'energy',
-  },
-  livingQuarters: {
-    name: 'Living Quarters',
-    file: 'livingQuarters.glb',
-    img: 'livingQuartersThumb.png',
-  },
-};
+import { modelFiles } from '../constants';
 
 export function createGui(placementController: PlacementController, ground: BABYLON.GroundMesh) {
   const mainMenu = document.getElementById('main-menu')!;
@@ -76,12 +39,12 @@ export function createGui(placementController: PlacementController, ground: BABY
 
       const img = document.createElement('img');
       img.src = `assets/${data.img}`;
-      img.alt = data.name;
+      img.alt = data.metadata.name;
       btn.appendChild(img);
 
       const tooltip = document.createElement('div');
       tooltip.className = 'tooltip';
-      tooltip.textContent = data.name;
+      tooltip.textContent = data.metadata.name;
       btn.appendChild(tooltip);
 
       btn.addEventListener('click', () => {
@@ -104,7 +67,7 @@ export function createGui(placementController: PlacementController, ground: BABY
             btn.classList.remove('active');
             activeButton = null;
           },
-          { resource: data.resource, name: data.name }
+          data.metadata
         );
 
         btn.classList.add('active');
@@ -236,18 +199,26 @@ export function setupAstronautThumbnails(scene: BABYLON.Scene, camera: BABYLON.U
   });
 }
 
-export function updateResourceInfo(entity: Astronaut | Rover | BABYLON.TransformNode) {
+export function updateResourceInfo(
+  entity: Astronaut | Rover | BABYLON.TransformNode | null | undefined
+) {
   if (!entity) return;
 
+  showResourceBar();
+
   const nameEl = document.getElementById('entity-name');
+  const oxygenEl = document.getElementById('oxygen-count');
+  const foodEl = document.getElementById('food-count');
+  const waterEl = document.getElementById('water-count');
+  const energyEl = document.getElementById('energy-count');
+  const energyContainer = document.getElementById('energy');
+
   if (nameEl) {
     if (entity instanceof Astronaut) {
       nameEl.textContent = entity.name ?? 'Astronaut';
     } else if (entity instanceof Rover) {
       nameEl.textContent = 'Rover';
     } else {
-      console.log(entity.metadata);
-
       const buildingName = entity.metadata?.name ?? entity.name ?? 'Building';
       nameEl.textContent = buildingName;
     }
@@ -255,22 +226,27 @@ export function updateResourceInfo(entity: Astronaut | Rover | BABYLON.Transform
 
   if (entity instanceof Astronaut || entity instanceof Rover) {
     const res = entity.getResources?.() ?? {};
-
-    const energyEl = document.getElementById('oxygen-count');
-    if (energyEl && res.oxygen !== undefined) energyEl.textContent = `${Math.floor(res.oxygen)}`;
-
-    const foodEl = document.getElementById('food-count');
-    if (foodEl && res.food !== undefined) foodEl.textContent = `${Math.floor(res.food)}`;
-
-    const waterEl = document.getElementById('water-count');
-    if (waterEl && res.water !== undefined) waterEl.textContent = `${Math.floor(res.water)}`;
-  } else {
-    const energyEl = document.getElementById('oxygen-count');
+    if (energyContainer) energyContainer.style.display = 'none';
+    if (oxygenEl)
+      oxygenEl.textContent = res.oxygen !== undefined ? `${Math.floor(res.oxygen)}` : '-';
+    if (foodEl) foodEl.textContent = res.food !== undefined ? `${Math.floor(res.food)}` : '-';
+    if (waterEl) waterEl.textContent = res.water !== undefined ? `${Math.floor(res.water)}` : '-';
     if (energyEl) energyEl.textContent = '-';
-    const foodEl = document.getElementById('food-count');
-    if (foodEl) foodEl.textContent = '-';
-    const waterEl = document.getElementById('water-count');
-    if (waterEl) waterEl.textContent = '-';
+  } else {
+    const resource = entity.metadata?.resource;
+    if (energyContainer) energyContainer.style.display = 'flex';
+
+    if (resource === 'energy' && energyEl) energyEl.textContent = '+1 / sec';
+    else if (energyEl) energyEl.textContent = '-';
+
+    if (resource === 'oxygen' && oxygenEl) oxygenEl.textContent = '+1 / sec';
+    else if (oxygenEl) oxygenEl.textContent = '-';
+
+    if (resource === 'food' && foodEl) foodEl.textContent = '+1 / sec';
+    else if (foodEl) foodEl.textContent = '-';
+
+    if (resource === 'water' && waterEl) waterEl.textContent = '+1 / sec';
+    else if (waterEl) waterEl.textContent = '-';
   }
 }
 
@@ -289,4 +265,13 @@ export function showDestroyButton(building: BABYLON.TransformNode, onDestroy: ()
 export function hideDestroyButton() {
   const destroyBtn = document.getElementById('destroy-building-btn')!;
   if (destroyBtn) destroyBtn.style.display = 'none';
+}
+
+export function showResourceBar() {
+  const resourceBar = document.getElementById('resource-bar');
+  if (resourceBar) resourceBar.style.display = 'flex';
+}
+export function hideResourceBar() {
+  const resourceBar = document.getElementById('resource-bar');
+  if (resourceBar) resourceBar.style.display = 'none';
 }

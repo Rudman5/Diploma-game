@@ -1,6 +1,6 @@
 import * as BABYLON from '@babylonjs/core';
 import { Astronaut } from './astronaut';
-import { hideLeaveButton, showLeaveButton, updateResourceInfo } from './createGui';
+import { hideLeaveButton, showLeaveButton, updateResourceInfo } from '../core/createGui';
 
 export class Rover {
   public mesh!: BABYLON.AbstractMesh;
@@ -10,9 +10,9 @@ export class Rover {
   private moveObserver?: BABYLON.Observer<BABYLON.Scene>;
   private _hl?: BABYLON.HighlightLayer;
   private resources = {
-    oxygen: 500,
-    food: 500,
-    water: 500,
+    oxygen: 0,
+    food: 0,
+    water: 0,
   };
   private resourceCapacity = {
     oxygen: 500,
