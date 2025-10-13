@@ -109,8 +109,10 @@
             </div>
           </div>
         </div>
-        <div id="leave-rover-btn" class="gui-btn">Leave Rover</div>
-        <div id="destroy-building-btn" class="gui-btn">Destroy building</div>
+        <div class="buttons">
+          <div id="leave-rover-btn" class="gui-btn">Leave Rover</div>
+          <div id="destroy-building-btn" class="gui-btn">Destroy building</div>
+        </div>
       </div>
     </div>
   </body>
@@ -155,7 +157,7 @@
     }
     #resource-bar {
       height: 56px;
-      display: none;
+      display: flex;
       flex-wrap: wrap;
       align-items: space-between;
       z-index: 10000;

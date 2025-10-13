@@ -4,8 +4,13 @@ import * as BABYLON from '@babylonjs/core';
 import { Rover } from '../modelCreation/rover';
 import { moveCameraTo } from './createCamera';
 import { modelFiles } from '../constants';
+import { ResourceManager } from './resourceManager';
 
-export function createGui(placementController: PlacementController, ground: BABYLON.GroundMesh) {
+export function createGui(
+  placementController: PlacementController,
+  ground: BABYLON.GroundMesh,
+  scene: BABYLON.Scene
+) {
   const mainMenu = document.getElementById('main-menu')!;
   const subMenu = document.getElementById('sub-menu')!;
   const backBtn = document.getElementById('back-btn')!;
@@ -79,6 +84,7 @@ export function createGui(placementController: PlacementController, ground: BABY
   }
   setupLeaveButton();
   refreshSubMenu();
+  updateGlobalResourceDisplay(scene);
 }
 
 export function setupLeaveButton() {
@@ -204,13 +210,15 @@ export function updateResourceInfo(
 ) {
   if (!entity) return;
 
-  showResourceBar();
-
   const nameEl = document.getElementById('entity-name');
   const oxygenEl = document.getElementById('oxygen-count');
   const foodEl = document.getElementById('food-count');
   const waterEl = document.getElementById('water-count');
   const energyEl = document.getElementById('energy-count');
+
+  const oxygenContainer = document.getElementById('oxygen');
+  const foodContainer = document.getElementById('food');
+  const waterContainer = document.getElementById('water');
   const energyContainer = document.getElementById('energy');
 
   if (nameEl) {
@@ -226,7 +234,12 @@ export function updateResourceInfo(
 
   if (entity instanceof Astronaut || entity instanceof Rover) {
     const res = entity.getResources?.() ?? {};
+
+    if (oxygenContainer) oxygenContainer.style.display = 'flex';
+    if (foodContainer) foodContainer.style.display = 'flex';
+    if (waterContainer) waterContainer.style.display = 'flex';
     if (energyContainer) energyContainer.style.display = 'none';
+
     if (oxygenEl)
       oxygenEl.textContent = res.oxygen !== undefined ? `${Math.floor(res.oxygen)}` : '-';
     if (foodEl) foodEl.textContent = res.food !== undefined ? `${Math.floor(res.food)}` : '-';
@@ -234,22 +247,35 @@ export function updateResourceInfo(
     if (energyEl) energyEl.textContent = '-';
   } else {
     const resource = entity.metadata?.resource;
-    if (energyContainer) energyContainer.style.display = 'flex';
+    const productionRate = entity.metadata?.productionRate || 0;
+    const energyConsumption = entity.metadata?.energyConsumption || 0;
 
-    if (resource === 'energy' && energyEl) energyEl.textContent = '+1 / sec';
-    else if (energyEl) energyEl.textContent = '-';
+    if (oxygenContainer) oxygenContainer.style.display = 'none';
+    if (foodContainer) foodContainer.style.display = 'none';
+    if (waterContainer) waterContainer.style.display = 'none';
+    if (energyContainer) energyContainer.style.display = 'none';
 
-    if (resource === 'oxygen' && oxygenEl) oxygenEl.textContent = '+1 / sec';
-    else if (oxygenEl) oxygenEl.textContent = '-';
-
-    if (resource === 'food' && foodEl) foodEl.textContent = '+1 / sec';
-    else if (foodEl) foodEl.textContent = '-';
-
-    if (resource === 'water' && waterEl) waterEl.textContent = '+1 / sec';
-    else if (waterEl) waterEl.textContent = '-';
+    if (resource === 'energy') {
+      if (energyContainer) energyContainer.style.display = 'flex';
+      if (energyEl) energyEl.textContent = `+${productionRate}/sec`;
+    } else if (resource === 'oxygen') {
+      if (oxygenContainer) oxygenContainer.style.display = 'flex';
+      if (oxygenEl) oxygenEl.textContent = `+${productionRate}/sec`;
+      if (energyContainer) energyContainer.style.display = 'flex';
+      if (energyEl) energyEl.textContent = `-${energyConsumption}/sec`;
+    } else if (resource === 'food') {
+      if (foodContainer) foodContainer.style.display = 'flex';
+      if (foodEl) foodEl.textContent = `+${productionRate}/sec`;
+      if (energyContainer) energyContainer.style.display = 'flex';
+      if (energyEl) energyEl.textContent = `-${energyConsumption}/sec`;
+    } else if (resource === 'water') {
+      if (waterContainer) waterContainer.style.display = 'flex';
+      if (waterEl) waterEl.textContent = `+${productionRate}/sec`;
+      if (energyContainer) energyContainer.style.display = 'flex';
+      if (energyEl) energyEl.textContent = `-${energyConsumption}/sec`;
+    }
   }
 }
-
 export function showDestroyButton(building: BABYLON.TransformNode, onDestroy: () => void) {
   const destroyBtn = document.getElementById('destroy-building-btn')!;
   if (destroyBtn) destroyBtn.style.display = 'inline-flex';
@@ -267,11 +293,46 @@ export function hideDestroyButton() {
   if (destroyBtn) destroyBtn.style.display = 'none';
 }
 
-export function showResourceBar() {
-  const resourceBar = document.getElementById('resource-bar');
-  if (resourceBar) resourceBar.style.display = 'flex';
-}
-export function hideResourceBar() {
-  const resourceBar = document.getElementById('resource-bar');
-  if (resourceBar) resourceBar.style.display = 'none';
+export function updateGlobalResourceDisplay(scene: BABYLON.Scene) {
+  const resourceManager: ResourceManager = (scene as any).resourceManager;
+  if (!resourceManager) return;
+
+  const energyStats = resourceManager.getEnergyStats();
+  const resources = resourceManager.getResourceStats();
+
+  const nameEl = document.getElementById('entity-name');
+  const oxygenEl = document.getElementById('oxygen-count');
+  const foodEl = document.getElementById('food-count');
+  const waterEl = document.getElementById('water-count');
+  const energyEl = document.getElementById('energy-count');
+
+  const oxygenContainer = document.getElementById('oxygen');
+  const foodContainer = document.getElementById('food');
+  const waterContainer = document.getElementById('water');
+  const energyContainer = document.getElementById('energy');
+
+  if (nameEl) {
+    nameEl.textContent = 'Global Resources';
+  }
+
+  if (oxygenContainer) oxygenContainer.style.display = 'flex';
+  if (foodContainer) foodContainer.style.display = 'flex';
+  if (waterContainer) waterContainer.style.display = 'flex';
+  if (energyContainer) energyContainer.style.display = 'flex';
+
+  if (oxygenEl) oxygenEl.textContent = `${Math.floor(resources.oxygen)}`;
+  if (foodEl) foodEl.textContent = `${Math.floor(resources.food)}`;
+  if (waterEl) waterEl.textContent = `${Math.floor(resources.water)}`;
+  if (energyEl) {
+    const netEnergy = Math.floor(energyStats.net);
+    const netSign = netEnergy > 0 ? '+' : '';
+
+    energyEl.textContent = `${Math.floor(resources.energy)} (${netSign}${netEnergy}/sec)`;
+
+    if (netEnergy < 0) {
+      energyEl.style.color = '#FF6B6B';
+    } else {
+      energyEl.style.color = '#90EE90';
+    }
+  }
 }

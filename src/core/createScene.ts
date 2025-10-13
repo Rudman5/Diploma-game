@@ -5,8 +5,8 @@ import { Astronaut } from '../modelCreation/astronaut';
 import {
   createGui,
   hideLeaveButton,
-  hideResourceBar,
   setupAstronautThumbnails,
+  updateGlobalResourceDisplay,
   updateResourceInfo,
 } from './createGui';
 import { PlacementController } from '../modelCreation/placementController';
@@ -79,6 +79,7 @@ export async function createScene(engine: BABYLON.Engine, canvas: HTMLCanvasElem
     astro.mesh.position.y = ground.getHeightAtCoordinates(data.x, data.z) ?? 0;
     astro.addCrowdAgent();
     astro.playAnimation('Idle');
+    astro.startResourceConsumption();
   }
 
   setupAstronautThumbnails(scene, camera);
@@ -88,6 +89,18 @@ export async function createScene(engine: BABYLON.Engine, canvas: HTMLCanvasElem
   rover.mesh.position.set(15, 0, 0);
   rover.mesh.position.y =
     ground.getHeightAtCoordinates(rover.mesh.position.x, rover.mesh.position.z) ?? 0;
+
+  scene.onBeforeRenderObservable.add(() => {
+    if (Astronaut.selectedAstronaut) {
+      updateResourceInfo(Astronaut.selectedAstronaut);
+    } else if (Rover.selectedRover) {
+      updateResourceInfo(Rover.selectedRover);
+    } else if (placementController.selectedBuilding) {
+      updateResourceInfo(placementController.selectedBuilding);
+    } else {
+      updateGlobalResourceDisplay(scene);
+    }
+  });
 
   scene.onPointerObservable.add((pointerInfo) => {
     if (pointerInfo.type !== BABYLON.PointerEventTypes.POINTERPICK) return;
@@ -106,9 +119,10 @@ export async function createScene(engine: BABYLON.Engine, canvas: HTMLCanvasElem
 
     if (event.button === 0) {
       if (clickedAstronaut) {
-        updateResourceInfo(clickedAstronaut);
+        Astronaut.allAstronauts.forEach((a) => a.deselect());
         rover.deselect();
         clickedAstronaut.select();
+        updateResourceInfo(clickedAstronaut);
         handled = true;
       } else if (rover.containsMesh(pick.pickedMesh as BABYLON.AbstractMesh)) {
         Astronaut.allAstronauts.forEach((a) => a.deselect());
@@ -123,16 +137,24 @@ export async function createScene(engine: BABYLON.Engine, canvas: HTMLCanvasElem
 
     if (event.button === 2 && !handled) {
       if (selectedAstronaut && pick.pickedPoint) {
-        const roverCenter = rover.mesh.getAbsolutePosition();
-        const offsetDir = rover.mesh.getDirection(new BABYLON.Vector3(2.5, 0, 0));
-        const entryPos = roverCenter.add(offsetDir.scale(2.5));
+        const clickedRover = rover.containsMesh(pick.pickedMesh as BABYLON.AbstractMesh);
 
-        selectedAstronaut.walkTo(entryPos, 2, () => {
-          rover.addOccupant(selectedAstronaut);
-          selectedAstronaut.enterRover(rover);
-        });
-        selectedAstronaut.deselect();
-        handled = true;
+        if (clickedRover) {
+          const roverCenter = rover.mesh.getAbsolutePosition();
+          const offsetDir = rover.mesh.getDirection(new BABYLON.Vector3(2.5, 0, 0));
+          const entryPos = roverCenter.add(offsetDir.scale(2.5));
+
+          selectedAstronaut.walkTo(entryPos, 2, () => {
+            rover.addOccupant(selectedAstronaut);
+            selectedAstronaut.enterRover(rover);
+          });
+          selectedAstronaut.deselect();
+          handled = true;
+        } else {
+          selectedAstronaut.walkTo(pick.pickedPoint, 2);
+          selectedAstronaut.deselect();
+          handled = true;
+        }
       } else if (selectedRover && pick.pickedPoint) {
         rover.driveTo(pick.pickedPoint, 12);
         rover.deselect();
@@ -144,12 +166,11 @@ export async function createScene(engine: BABYLON.Engine, canvas: HTMLCanvasElem
     if (placementController.selectedBuilding) handled = true;
 
     if (!handled && pick.pickedPoint) {
-      hideResourceBar();
     }
   });
 
   const placementController = new PlacementController(scene);
-  createGui(placementController, ground);
+  createGui(placementController, ground, scene);
   await createNavMesh(scene, [ground]);
 
   return scene;

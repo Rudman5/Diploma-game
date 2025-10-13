@@ -3,6 +3,7 @@ import { Astronaut } from './astronaut';
 import { Rover } from './rover';
 import { hideDestroyButton, showDestroyButton, updateResourceInfo } from '../core/createGui';
 import { ModelData, ModelMetadata } from '../types';
+import { ResourceManager } from '../core/resourceManager';
 
 const RESOURCE_COLORS: Record<string, BABYLON.Color3> = {
   water: BABYLON.Color3.FromHexString('#2e90b0'),
@@ -15,21 +16,24 @@ export class PlacementController {
   private scene: BABYLON.Scene;
   private currentRoot: BABYLON.TransformNode | null = null;
   private rotating = false;
-  private placedObjects: BABYLON.TransformNode[] = [];
   private placedBBoxes: { min: BABYLON.Vector3; max: BABYLON.Vector3 }[] = [];
   private highlightLayer: BABYLON.HighlightLayer;
   private resourceCounts: Record<string, number> = { water: 0, food: 0, oxygen: 0, energy: 0 };
+  private resourceManager: ResourceManager;
 
   private pointerObserver?: BABYLON.Observer<BABYLON.PointerInfo>;
   private rotationObserver?: BABYLON.Observer<BABYLON.Scene>;
   private keyboardObserver?: BABYLON.Observer<BABYLON.KeyboardInfo>;
   private obstacles: any[] = [];
 
+  public placedObjects: BABYLON.TransformNode[] = [];
   public selectedBuilding: BABYLON.TransformNode | null = null;
 
   constructor(scene: BABYLON.Scene) {
     this.scene = scene;
     this.highlightLayer = new BABYLON.HighlightLayer('hl', scene);
+    this.resourceManager = new ResourceManager(scene);
+    (scene as any).resourceManager = this.resourceManager;
 
     this.keyboardObserver = this.scene.onKeyboardObservable.add((kbInfo) => {
       if (kbInfo.type === BABYLON.KeyboardEventTypes.KEYDOWN && kbInfo.event.key === 'Escape') {
@@ -139,12 +143,35 @@ export class PlacementController {
         this.placedBBoxes.push({ min: bbox.min.clone(), max: bbox.max.clone() });
 
         if (this.currentRoot!.metadata?.resource) {
-          const resource = this.currentRoot!.metadata.resource;
+          const resourceType = this.currentRoot!.metadata.resource;
+
+          // Define production rates per building type
+          const productionRates: Record<string, number> = {
+            oxygen: 2.0, // units per second
+            food: 1.0,
+            water: 1.0,
+            energy: 5.0,
+          };
+
+          const productionRate = productionRates[resourceType] || 1.0;
+          const energyConsumption = this.currentRoot!.metadata.energyConsumption || 0;
+
+          const width = Math.max(bbox.max.x - bbox.min.x, bbox.max.z - bbox.min.z);
+          const radius = width * 1.2;
+
+          this.resourceManager.registerBuilding(
+            this.currentRoot!,
+            resourceType,
+            productionRate,
+            radius,
+            energyConsumption
+          );
+
+          this.currentRoot!.metadata.productionRate = productionRate;
+          this.currentRoot!.metadata.radius = radius;
 
           const segments = 64;
           const points: BABYLON.Vector3[] = [];
-          const width = Math.max(bbox.max.x - bbox.min.x, bbox.max.z - bbox.min.z);
-          const radius = width * 1.2;
 
           const ground = groundMesh;
           const pos = this.currentRoot!.getAbsolutePosition();
@@ -162,12 +189,12 @@ export class PlacementController {
           }
 
           const circle = BABYLON.MeshBuilder.CreateLines(
-            `${resource}_radiusCircle_${Date.now()}`,
+            `${resourceType}_radiusCircle_${Date.now()}`,
             { points },
             this.scene
           );
 
-          circle.color = RESOURCE_COLORS[resource] ?? BABYLON.Color3.White();
+          circle.color = RESOURCE_COLORS[resourceType] ?? BABYLON.Color3.White();
           circle.isPickable = false;
           circle.alwaysSelectAsActiveMesh = false;
           circle.setEnabled(false);
@@ -286,6 +313,7 @@ export class PlacementController {
     if (building.metadata?.radiusMesh) {
       building.metadata.radiusMesh.dispose();
     }
+    this.resourceManager.unregisterBuilding(building);
 
     if ((this.scene as any).crowd && this.obstacles[index] !== undefined) {
       const crowd: BABYLON.ICrowd = (this.scene as any).crowd;

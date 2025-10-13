@@ -8,5 +8,6 @@ export interface ModelMetadata {
   name: string;
   resource?: string;
   energyConsumption?: number;
+  productionRate?: number;
 }
 export type ModelFiles = Record<string, ModelData>;
