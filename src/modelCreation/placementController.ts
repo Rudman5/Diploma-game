@@ -1,8 +1,13 @@
 import * as BABYLON from '@babylonjs/core';
 import { Astronaut } from './astronaut';
 import { Rover } from './rover';
-import { hideDestroyButton, showDestroyButton, updateResourceInfo } from '../core/createGui';
-import { ModelData, ModelMetadata } from '../types';
+import {
+  hideDestroyButton,
+  showDestroyButton,
+  updateResourceInfo,
+  hideRefillButtons,
+} from '../core/createGui';
+import { ModelMetadata } from '../types';
 import { ResourceManager } from '../core/resourceManager';
 
 const RESOURCE_COLORS: Record<string, BABYLON.Color3> = {
@@ -69,7 +74,7 @@ export class PlacementController {
       mesh.checkCollisions = true;
       mesh.parent = root;
     });
-    console.log(metadata);
+
     root.metadata = metadata;
 
     const yOffset = 0.01;
@@ -145,19 +150,18 @@ export class PlacementController {
         if (this.currentRoot!.metadata?.resource) {
           const resourceType = this.currentRoot!.metadata.resource;
 
-          // Define production rates per building type
           const productionRates: Record<string, number> = {
-            oxygen: 2.0, // units per second
+            oxygen: 2.0,
             food: 1.0,
             water: 1.0,
-            energy: 5.0,
+            energy: 30.0,
           };
 
           const productionRate = productionRates[resourceType] || 1.0;
           const energyConsumption = this.currentRoot!.metadata.energyConsumption || 0;
 
           const width = Math.max(bbox.max.x - bbox.min.x, bbox.max.z - bbox.min.z);
-          const radius = width * 1.2;
+          const radius = width * 1.5;
 
           this.resourceManager.registerBuilding(
             this.currentRoot!,
@@ -222,9 +226,6 @@ export class PlacementController {
           const dt = this.scene.getEngine().getDeltaTime() / 1000;
           crowd.update(dt);
         }
-        window.setInterval(() => {
-          this.updateResources();
-        }, 1000);
 
         this.cleanupPlacement();
         this.deselect();
@@ -278,31 +279,6 @@ export class PlacementController {
     this.clearObstacles();
     if (this.keyboardObserver) this.scene.onKeyboardObservable.remove(this.keyboardObserver);
   }
-
-  private updateResources() {
-    for (const building of this.placedObjects) {
-      const resource = building.metadata?.resource;
-      if (!resource) continue;
-
-      this.resourceCounts[resource] = (this.resourceCounts[resource] ?? 0) + 1;
-      building.metadata.resourceCount = this.resourceCounts[resource];
-    }
-  }
-
-  private deselect() {
-    if (this.selectedBuilding) {
-      if (this.selectedBuilding.metadata?.radiusMesh) {
-        this.selectedBuilding.metadata.radiusMesh.setEnabled(false);
-      }
-
-      for (const mesh of this.selectedBuilding.getChildMeshes()) {
-        this.highlightLayer.removeMesh(mesh as BABYLON.Mesh);
-      }
-      this.selectedBuilding = null;
-    }
-    hideDestroyButton();
-  }
-
   private removeBuilding(building: BABYLON.TransformNode) {
     const index = this.placedObjects.indexOf(building);
     if (index !== -1) {
@@ -324,6 +300,35 @@ export class PlacementController {
 
     building.dispose();
   }
+
+  public checkRefillOptions(building: BABYLON.TransformNode): {
+    canRefillAstronaut: boolean;
+    canRefillRover: boolean;
+  } {
+    const astronautInRange = this.resourceManager.canRefillAstronautFromBuilding(building);
+    const roverInRange = this.resourceManager.canRefillRoverFromBuilding(building);
+    return {
+      canRefillAstronaut: astronautInRange !== null,
+      canRefillRover: roverInRange !== null,
+    };
+  }
+
+  public refillAstronautFromBuilding(building: BABYLON.TransformNode): boolean {
+    const astronaut = this.resourceManager.canRefillAstronautFromBuilding(building);
+    if (!astronaut) return false;
+
+    const amountRefilled = this.resourceManager.refillAstronautFromBuilding(astronaut, building);
+    return amountRefilled > 0;
+  }
+
+  public refillRoverFromBuilding(building: BABYLON.TransformNode): boolean {
+    const rover = this.resourceManager.canRefillRoverFromBuilding(building);
+    if (!rover) return false;
+
+    const amountRefilled = this.resourceManager.refillRoverFromBuilding(rover, building);
+    return amountRefilled > 0;
+  }
+
   public handlePointerPick(pick: BABYLON.PickingInfo, event: PointerEvent) {
     let clickedBuilding: BABYLON.TransformNode | null = null;
     if (pick?.hit && pick.pickedMesh) {
@@ -335,6 +340,14 @@ export class PlacementController {
       this.deselect();
       this.selectedBuilding = clickedBuilding;
       updateResourceInfo(clickedBuilding);
+
+      const refillOptions = this.checkRefillOptions(clickedBuilding);
+      (this.scene as any).currentRefillOptions = {
+        building: clickedBuilding,
+        canRefillAstronaut: refillOptions.canRefillAstronaut,
+        canRefillRover: refillOptions.canRefillRover,
+      };
+
       showDestroyButton(clickedBuilding, () => {
         this.removeBuilding(clickedBuilding);
         this.selectedBuilding = null;
@@ -350,5 +363,22 @@ export class PlacementController {
     } else {
       this.deselect();
     }
+  }
+
+  private deselect() {
+    if (this.selectedBuilding) {
+      if (this.selectedBuilding.metadata?.radiusMesh) {
+        this.selectedBuilding.metadata.radiusMesh.setEnabled(false);
+      }
+
+      for (const mesh of this.selectedBuilding.getChildMeshes()) {
+        this.highlightLayer.removeMesh(mesh as BABYLON.Mesh);
+      }
+      this.selectedBuilding = null;
+    }
+    hideDestroyButton();
+    hideRefillButtons();
+
+    (this.scene as any).currentRefillOptions = null;
   }
 }

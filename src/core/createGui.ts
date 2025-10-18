@@ -84,6 +84,7 @@ export function createGui(
   }
   setupLeaveButton();
   refreshSubMenu();
+  setupRefillButtons(scene, placementController);
   updateGlobalResourceDisplay(scene);
 }
 
@@ -209,7 +210,12 @@ export function updateResourceInfo(
   entity: Astronaut | Rover | BABYLON.TransformNode | null | undefined
 ) {
   if (!entity) return;
-
+  if (entity instanceof BABYLON.TransformNode && entity.metadata?.resource) {
+    const scene = (entity as any).getScene?.();
+    if (scene) {
+      updateRefillButtons(scene);
+    }
+  }
   const nameEl = document.getElementById('entity-name');
   const oxygenEl = document.getElementById('oxygen-count');
   const foodEl = document.getElementById('food-count');
@@ -257,22 +263,22 @@ export function updateResourceInfo(
 
     if (resource === 'energy') {
       if (energyContainer) energyContainer.style.display = 'flex';
-      if (energyEl) energyEl.textContent = `+${productionRate}/sec`;
+      if (energyEl) energyEl.textContent = `+${productionRate}`;
     } else if (resource === 'oxygen') {
       if (oxygenContainer) oxygenContainer.style.display = 'flex';
       if (oxygenEl) oxygenEl.textContent = `+${productionRate}/sec`;
       if (energyContainer) energyContainer.style.display = 'flex';
-      if (energyEl) energyEl.textContent = `-${energyConsumption}/sec`;
+      if (energyEl) energyEl.textContent = `-${energyConsumption}`;
     } else if (resource === 'food') {
       if (foodContainer) foodContainer.style.display = 'flex';
       if (foodEl) foodEl.textContent = `+${productionRate}/sec`;
       if (energyContainer) energyContainer.style.display = 'flex';
-      if (energyEl) energyEl.textContent = `-${energyConsumption}/sec`;
+      if (energyEl) energyEl.textContent = `-${energyConsumption}`;
     } else if (resource === 'water') {
       if (waterContainer) waterContainer.style.display = 'flex';
       if (waterEl) waterEl.textContent = `+${productionRate}/sec`;
       if (energyContainer) energyContainer.style.display = 'flex';
-      if (energyEl) energyEl.textContent = `-${energyConsumption}/sec`;
+      if (energyEl) energyEl.textContent = `-${energyConsumption}`;
     }
   }
 }
@@ -292,12 +298,10 @@ export function hideDestroyButton() {
   const destroyBtn = document.getElementById('destroy-building-btn')!;
   if (destroyBtn) destroyBtn.style.display = 'none';
 }
-
 export function updateGlobalResourceDisplay(scene: BABYLON.Scene) {
   const resourceManager: ResourceManager = (scene as any).resourceManager;
   if (!resourceManager) return;
 
-  const energyStats = resourceManager.getEnergyStats();
   const resources = resourceManager.getResourceStats();
 
   const nameEl = document.getElementById('entity-name');
@@ -320,19 +324,90 @@ export function updateGlobalResourceDisplay(scene: BABYLON.Scene) {
   if (waterContainer) waterContainer.style.display = 'flex';
   if (energyContainer) energyContainer.style.display = 'flex';
 
-  if (oxygenEl) oxygenEl.textContent = `${Math.floor(resources.oxygen)}`;
-  if (foodEl) foodEl.textContent = `${Math.floor(resources.food)}`;
-  if (waterEl) waterEl.textContent = `${Math.floor(resources.water)}`;
+  if (oxygenEl) {
+    const productionText =
+      resources.oxygenProduction > 0 ? ` (+${Math.floor(resources.oxygenProduction)}/s)` : '';
+    oxygenEl.textContent = `${Math.floor(resources.oxygen)}${productionText}`;
+  }
+
+  if (foodEl) {
+    const productionText =
+      resources.foodProduction > 0 ? ` (+${Math.floor(resources.foodProduction)}/s)` : '';
+    foodEl.textContent = `${Math.floor(resources.food)}${productionText}`;
+  }
+
+  if (waterEl) {
+    const productionText =
+      resources.waterProduction > 0 ? ` (+${Math.floor(resources.waterProduction)}/s)` : '';
+    waterEl.textContent = `${Math.floor(resources.water)}${productionText}`;
+  }
+
   if (energyEl) {
-    const netEnergy = Math.floor(energyStats.net);
-    const netSign = netEnergy > 0 ? '+' : '';
+    const production = Math.floor(resources.energyProduction);
+    const required = Math.floor(resources.energyRequired);
 
-    energyEl.textContent = `${Math.floor(resources.energy)} (${netSign}${netEnergy}/sec)`;
+    energyEl.textContent = `${required}/${production}`;
 
-    if (netEnergy < 0) {
+    if (required > production) {
       energyEl.style.color = '#FF6B6B';
     } else {
-      energyEl.style.color = '#90EE90';
+      energyEl.style.color = '#ffffff';
     }
   }
+}
+export function setupRefillButtons(scene: BABYLON.Scene, placementController: PlacementController) {
+  const refillAstronautBtn = document.getElementById('refill-astronaut');
+  const refillRoverBtn = document.getElementById('refill-rover');
+
+  if (refillAstronautBtn) {
+    refillAstronautBtn.onclick = () => {
+      const refillOptions = (scene as any).currentRefillOptions;
+      if (refillOptions?.building && refillOptions.canRefillAstronaut) {
+        const success = placementController.refillAstronautFromBuilding(refillOptions.building);
+        if (success) {
+          console.log('Astronaut refilled successfully');
+          if (Astronaut.selectedAstronaut) {
+            updateResourceInfo(Astronaut.selectedAstronaut);
+          }
+        }
+      }
+    };
+  }
+
+  if (refillRoverBtn) {
+    refillRoverBtn.onclick = () => {
+      const refillOptions = (scene as any).currentRefillOptions;
+      if (refillOptions?.building && refillOptions.canRefillRover) {
+        const success = placementController.refillRoverFromBuilding(refillOptions.building);
+        if (success) {
+          console.log('Rover refilled successfully');
+          if (Rover.selectedRover) {
+            updateResourceInfo(Rover.selectedRover);
+          }
+        }
+      }
+    };
+  }
+}
+
+export function updateRefillButtons(scene: BABYLON.Scene) {
+  const refillOptions = (scene as any).currentRefillOptions;
+  const refillAstronautBtn = document.getElementById('refill-astronaut');
+  const refillRoverBtn = document.getElementById('refill-rover');
+
+  if (refillAstronautBtn) {
+    refillAstronautBtn.style.display = refillOptions?.canRefillAstronaut ? 'inline-flex' : 'none';
+  }
+
+  if (refillRoverBtn) {
+    refillRoverBtn.style.display = refillOptions?.canRefillRover ? 'inline-flex' : 'none';
+  }
+}
+
+export function hideRefillButtons() {
+  const refillAstronautBtn = document.getElementById('refill-astronaut');
+  const refillRoverBtn = document.getElementById('refill-rover');
+
+  if (refillAstronautBtn) refillAstronautBtn.style.display = 'none';
+  if (refillRoverBtn) refillRoverBtn.style.display = 'none';
 }

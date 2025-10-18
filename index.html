@@ -73,22 +73,22 @@
           <div class="astronaut-thumb" id="neil-armstrong">
             <div class="menu-btn">
               <div class="tooltip">Neil Armstrong</div>
-              <img src="./public/assets/astronautThumb.png" />
-              <img style="display: none" src="./public/assets/artemisRoverThumb.png" />
+              <img src="./assets/astronautThumb.png" />
+              <img style="display: none" src="./assets/artemisRoverThumb.png" />
             </div>
           </div>
           <div class="astronaut-thumb" id="buzz-aldrin">
             <div class="menu-btn">
               <div class="tooltip">Buzz Aldrin</div>
-              <img src="./public/assets/astronautThumb.png" />
-              <img style="display: none" src="./public/assets/artemisRoverThumb.png" />
+              <img src="./assets/astronautThumb.png" />
+              <img style="display: none" src="./assets/artemisRoverThumb.png" />
             </div>
           </div>
           <div class="astronaut-thumb" id="michael-collins">
             <div class="menu-btn">
               <div class="tooltip">Michael Collins</div>
-              <img src="./public/assets/astronautThumb.png" />
-              <img style="display: none" src="./public/assets/artemisRoverThumb.png" />
+              <img src="./assets/astronautThumb.png" />
+              <img style="display: none" src="./assets/artemisRoverThumb.png" />
             </div>
           </div>
         </div>
@@ -112,6 +112,8 @@
         <div class="buttons">
           <div id="leave-rover-btn" class="gui-btn">Leave Rover</div>
           <div id="destroy-building-btn" class="gui-btn">Destroy building</div>
+          <div id="refill-astronaut" class="gui-btn">Refill astronaut</div>
+          <div id="refill-rover" class="gui-btn">Refill rover</div>
         </div>
       </div>
     </div>
@@ -321,6 +323,13 @@
       width: 100%;
     }
 
+    .buttons {
+      display: flex;
+      gap: 12px;
+    }
+
+    #refill-astronaut,
+    #refill-rover,
     #destroy-building-btn,
     #leave-rover-btn {
       display: none;

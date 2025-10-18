@@ -5,26 +5,22 @@ import { ResourceManager } from '../core/resourceManager';
 import { PlacementController } from './placementController';
 
 export class Rover {
+  public static mainRover: Rover;
   public mesh!: BABYLON.AbstractMesh;
   private scene: BABYLON.Scene;
   private groundMesh?: BABYLON.GroundMesh;
   private crowdAgent?: number;
   private moveObserver?: BABYLON.Observer<BABYLON.Scene>;
   private _hl?: BABYLON.HighlightLayer;
-  private resources = {
-    oxygen: 0,
-    food: 0,
-    water: 0,
+  public resources = {
+    oxygen: 500,
+    food: 500,
+    water: 500,
   };
   private resourceCapacity = {
     oxygen: 500,
     food: 500,
     water: 500,
-  };
-  private refillRates = {
-    oxygen: 15,
-    food: 8,
-    water: 8,
   };
 
   public engineSound?: BABYLON.StaticSound;
@@ -34,6 +30,7 @@ export class Rover {
   constructor(scene: BABYLON.Scene, groundMesh: BABYLON.GroundMesh) {
     this.scene = scene;
     this.groundMesh = groundMesh;
+    Rover.mainRover = this;
   }
 
   async load(modelName: string = 'artemisRover.glb', rootUrl: string = './buildModels/') {
@@ -256,7 +253,7 @@ export class Rover {
     const available = this.resources[type];
     const consumed = Math.min(available, amount);
     this.resources[type] -= consumed;
-    return consumed; // how much we actually could provide
+    return consumed;
   }
 
   hasResources(amounts: Partial<typeof this.resources>) {
@@ -265,63 +262,5 @@ export class Rover {
       if (this.resources[k] < (amounts[k] ?? 0)) return false;
     }
     return true;
-  }
-
-  public updateResourceCollection() {
-    const scene: any = this.scene;
-    const resourceManager: ResourceManager = scene.resourceManager;
-    const placementController: PlacementController = scene.placementController;
-
-    if (!resourceManager || !placementController) return;
-
-    const roverPos = this.mesh.getAbsolutePosition();
-
-    for (const building of placementController.placedObjects) {
-      const resourceType = resourceManager.getBuildingResourceType(building);
-
-      if (!resourceType) continue;
-
-      if (resourceManager.isEntityInRange(roverPos, building)) {
-        this.refillFromBuilding(building, resourceManager);
-
-        if (this.occupiedBy.length > 0) {
-          this.shareResourcesWithOccupants();
-        }
-      }
-    }
-  }
-
-  private refillFromBuilding(building: BABYLON.TransformNode, resourceManager: ResourceManager) {
-    const resourceType = building.metadata?.resource;
-    if (!resourceType) return;
-
-    const refillRate = this.refillRates[resourceType as keyof typeof this.refillRates];
-    if (!refillRate) return;
-
-    const dt = this.scene.getEngine().getDeltaTime() / 1000;
-    const refillAmount = refillRate * dt;
-
-    const available = resourceManager.consumeResource(resourceType, refillAmount);
-
-    if (available > 0) {
-      this.refillResource(resourceType as keyof typeof this.resources, available);
-    }
-  }
-
-  private shareResourcesWithOccupants() {
-    // Distribute resources to astronauts in rover
-    this.occupiedBy.forEach((astronaut) => {
-      const needed = { oxygen: 5, food: 2, water: 2 };
-
-      for (const resource in needed) {
-        const type = resource as keyof typeof needed;
-        const amount = needed[type];
-
-        if (this.resources[type] > amount && astronaut.getResources()[type] < 80) {
-          const transferred = this.consumeResource(type, amount);
-          astronaut.refill(type, transferred);
-        }
-      }
-    });
   }
 }

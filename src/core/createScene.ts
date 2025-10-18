@@ -155,7 +155,7 @@ export async function createScene(engine: BABYLON.Engine, canvas: HTMLCanvasElem
           selectedAstronaut.deselect();
           handled = true;
         }
-      } else if (selectedRover && pick.pickedPoint) {
+      } else if (selectedRover && pick.pickedPoint && rover.occupiedBy.length > 0) {
         rover.driveTo(pick.pickedPoint, 12);
         rover.deselect();
         handled = true;

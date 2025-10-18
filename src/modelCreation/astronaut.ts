@@ -29,11 +29,6 @@ export class Astronaut {
     food: 10,
     water: 15,
   };
-  private refillRates = {
-    oxygen: 8,
-    food: 3,
-    water: 3,
-  };
 
   private resourceObserver?: BABYLON.Observer<BABYLON.Scene>;
 
@@ -54,7 +49,6 @@ export class Astronaut {
     Astronaut.allAstronauts.push(this);
   }
 
-  /** Load the 3D model and animations */
   async load(modelName = 'astronautLatest.glb', rootUrl = './models/') {
     const result = await BABYLON.SceneLoader.ImportMeshAsync('', rootUrl, modelName, this.scene);
 
@@ -195,15 +189,6 @@ export class Astronaut {
 
     this.mesh.parent = rover.mesh;
     this.mesh.setEnabled(false);
-    const needed = { oxygen: 50, food: 30, water: 30 };
-
-    for (const key in needed) {
-      const type = key as keyof typeof needed;
-      const availableFromRover = rover.consumeResource(type, needed[type]);
-      this.refill(type, availableFromRover);
-    }
-    this.pauseResourceConsumption(true);
-
     showLeaveButton();
   }
 
@@ -303,25 +288,44 @@ export class Astronaut {
     if (this.resourceObserver) return;
 
     this.resourceObserver = this.scene.onBeforeRenderObservable.add(() => {
-      if (!this.isAlive || this.rover) return; // Don't consume in rover
+      if (!this.isAlive) return;
 
       const dt = this.scene.getEngine().getDeltaTime() / 1000;
 
-      this.resources.oxygen -= this.resourceConsumptionRates.oxygen * dt;
-      this.resources.oxygen = Math.max(0, this.resources.oxygen);
+      if (this.rover) {
+        const oxygenFromRover = this.rover.consumeResource(
+          'oxygen',
+          this.resourceConsumptionRates.oxygen * dt
+        );
+        this.resources.oxygen = Math.min(100, this.resources.oxygen + oxygenFromRover);
 
-      if (this.resources.food > 0) {
-        this.resources.food -= this.resourceConsumptionRates.food * dt;
-        this.resources.food = Math.max(0, this.resources.food);
-      }
+        const foodFromRover = this.rover.consumeResource(
+          'food',
+          this.resourceConsumptionRates.food * dt
+        );
+        this.resources.food = Math.min(100, this.resources.food + foodFromRover);
 
-      if (this.resources.water > 0) {
-        this.resources.water -= this.resourceConsumptionRates.water * dt;
-        this.resources.water = Math.max(0, this.resources.water);
+        const waterFromRover = this.rover.consumeResource(
+          'water',
+          this.resourceConsumptionRates.water * dt
+        );
+        this.resources.water = Math.min(100, this.resources.water + waterFromRover);
+      } else {
+        this.resources.oxygen -= this.resourceConsumptionRates.oxygen * dt;
+        this.resources.oxygen = Math.max(0, this.resources.oxygen);
+
+        if (this.resources.food > 0) {
+          this.resources.food -= this.resourceConsumptionRates.food * dt;
+          this.resources.food = Math.max(0, this.resources.food);
+        }
+
+        if (this.resources.water > 0) {
+          this.resources.water -= this.resourceConsumptionRates.water * dt;
+          this.resources.water = Math.max(0, this.resources.water);
+        }
       }
 
       this.checkCriticalLevels();
-      this.tryRefillFromEnvironment();
       this.checkDeathConditions();
     });
   }
@@ -338,38 +342,6 @@ export class Astronaut {
     }
   }
 
-  private tryRefillFromEnvironment() {
-    const scene: any = this.scene;
-    const resourceManager: ResourceManager = scene.resourceManager;
-    const placementController: PlacementController = scene.placementController;
-
-    if (!resourceManager || !placementController) return;
-
-    const astronautPos = this.mesh.getAbsolutePosition();
-
-    for (const building of placementController.placedObjects) {
-      if (resourceManager.isEntityInRange(astronautPos, building)) {
-        this.refillFromBuilding(building, resourceManager);
-      }
-    }
-  }
-
-  private refillFromBuilding(building: BABYLON.TransformNode, resourceManager: ResourceManager) {
-    const resourceType = building.metadata?.resource;
-    if (!resourceType) return;
-
-    const refillRate = this.refillRates[resourceType as keyof typeof this.refillRates];
-    if (!refillRate) return;
-
-    const dt = this.scene.getEngine().getDeltaTime() / 1000;
-    const refillAmount = refillRate * dt;
-
-    const available = resourceManager.consumeResource(resourceType, refillAmount);
-
-    if (available > 0) {
-      this.refill(resourceType as 'oxygen' | 'food' | 'water', available);
-    }
-  }
   private checkDeathConditions() {
     if (this.resources.oxygen <= 0) {
       this.die('suffocation');
@@ -389,6 +361,7 @@ export class Astronaut {
       console.warn(`${this.name} is severely dehydrated!`);
     }
   }
+
   pauseResourceConsumption(paused: boolean) {
     if (!this.resourceObserver) return;
 
