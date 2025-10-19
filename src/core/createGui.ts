@@ -38,6 +38,9 @@ export function createGui(
   });
 
   function refreshSubMenu() {
+    const resourceManager: ResourceManager = (scene as any).resourceManager;
+    modelButtonsContainer.innerHTML = '';
+
     Object.entries(modelFiles).forEach(([key, data]) => {
       const btn = document.createElement('button');
       btn.className = 'menu-btn model-btn';
@@ -49,10 +52,25 @@ export function createGui(
 
       const tooltip = document.createElement('div');
       tooltip.className = 'tooltip';
-      tooltip.textContent = data.metadata.name;
+
+      const rockCost = data.metadata.rocksNeeded || 0;
+      const canAfford = resourceManager ? resourceManager.getAvailableRocks() >= rockCost : true;
+
+      if (!canAfford) {
+        btn.classList.add('disabled');
+        tooltip.textContent = `${data.metadata.name} (Cost: ${rockCost} rocks) - Not enough rocks`;
+        btn.title = `Requires ${rockCost} rocks`;
+      } else {
+        tooltip.textContent = `${data.metadata.name} (Cost: ${rockCost} rocks)`;
+      }
+
       btn.appendChild(tooltip);
 
       btn.addEventListener('click', () => {
+        if (!canAfford) {
+          return;
+        }
+
         if (activeButton === btn) {
           placementController.cancelPlacement();
           btn.classList.remove('active');
@@ -82,10 +100,19 @@ export function createGui(
       modelButtonsContainer.appendChild(btn);
     });
   }
+
+  (scene as any).refreshBuildingMenu = refreshSubMenu;
   setupLeaveButton();
   refreshSubMenu();
   setupRefillButtons(scene, placementController);
   updateGlobalResourceDisplay(scene);
+}
+
+export function updateBuildingButtons(scene: BABYLON.Scene) {
+  const refreshSubMenu = (scene as any).refreshBuildingMenu;
+  if (refreshSubMenu) {
+    refreshSubMenu();
+  }
 }
 
 export function setupLeaveButton() {
@@ -309,11 +336,13 @@ export function updateGlobalResourceDisplay(scene: BABYLON.Scene) {
   const foodEl = document.getElementById('food-count');
   const waterEl = document.getElementById('water-count');
   const energyEl = document.getElementById('energy-count');
+  const rocksEl = document.getElementById('rocks-count');
 
   const oxygenContainer = document.getElementById('oxygen');
   const foodContainer = document.getElementById('food');
   const waterContainer = document.getElementById('water');
   const energyContainer = document.getElementById('energy');
+  const rocksContainer = document.getElementById('rocks');
 
   if (nameEl) {
     nameEl.textContent = 'Global Resources';
@@ -323,6 +352,7 @@ export function updateGlobalResourceDisplay(scene: BABYLON.Scene) {
   if (foodContainer) foodContainer.style.display = 'flex';
   if (waterContainer) waterContainer.style.display = 'flex';
   if (energyContainer) energyContainer.style.display = 'flex';
+  if (rocksContainer) rocksContainer.style.display = 'flex';
 
   if (oxygenEl) {
     const productionText =
@@ -353,6 +383,10 @@ export function updateGlobalResourceDisplay(scene: BABYLON.Scene) {
     } else {
       energyEl.style.color = '#ffffff';
     }
+  }
+
+  if (rocksEl) {
+    rocksEl.textContent = `${Math.floor(resources.rocks)}`;
   }
 }
 export function setupRefillButtons(scene: BABYLON.Scene, placementController: PlacementController) {

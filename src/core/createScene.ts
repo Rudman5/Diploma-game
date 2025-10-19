@@ -6,6 +6,7 @@ import {
   createGui,
   hideLeaveButton,
   setupAstronautThumbnails,
+  updateBuildingButtons,
   updateGlobalResourceDisplay,
   updateResourceInfo,
 } from './createGui';
@@ -132,6 +133,7 @@ export async function createScene(engine: BABYLON.Engine, canvas: HTMLCanvasElem
         Astronaut.allAstronauts.forEach((a) => a.deselect());
         rover.deselect();
         hideLeaveButton();
+        updateBuildingButtons(scene);
         updateGlobalResourceDisplay(scene);
       }
     }

@@ -23,7 +23,6 @@ export class PlacementController {
   private rotating = false;
   private placedBBoxes: { min: BABYLON.Vector3; max: BABYLON.Vector3 }[] = [];
   private highlightLayer: BABYLON.HighlightLayer;
-  private resourceCounts: Record<string, number> = { water: 0, food: 0, oxygen: 0, energy: 0 };
   private resourceManager: ResourceManager;
 
   private pointerObserver?: BABYLON.Observer<BABYLON.PointerInfo>;
@@ -56,13 +55,6 @@ export class PlacementController {
   ): Promise<void> {
     if (this.currentRoot) this.cancelPlacement();
 
-    if (metadata?.rocksNeeded) {
-      const resourceManager: ResourceManager = (this.scene as any).resourceManager;
-      if (!resourceManager || !resourceManager.consumeRocks(metadata.rocksNeeded)) {
-        console.warn(`Not enough rocks! Need ${metadata.rocksNeeded}`);
-        return;
-      }
-    }
     const result = await BABYLON.SceneLoader.ImportMeshAsync(
       '',
       './buildModels/',
@@ -134,11 +126,41 @@ export class PlacementController {
           }
         }
 
-        for (const mesh of meshes)
+        if (canPlace) {
+          for (const astronaut of Astronaut.allAstronauts) {
+            if (astronaut.mesh && this.isPositionOccupiedByAstronaut(pos, astronaut)) {
+              canPlace = false;
+              break;
+            }
+          }
+        }
+
+        if (canPlace && Rover.mainRover && Rover.mainRover.mesh) {
+          if (this.isPositionOccupiedByRover(pos, Rover.mainRover)) {
+            canPlace = false;
+          }
+        }
+
+        if (canPlace) {
+          const rockManager = (this.scene as any).rockManager;
+          if (rockManager) {
+            const rocks = rockManager.getRocks();
+            for (const rock of rocks) {
+              if (this.isPositionOccupiedByRock(pos, rock)) {
+                canPlace = false;
+                break;
+              }
+            }
+          }
+        }
+
+        for (const mesh of meshes) {
+          this.highlightLayer.removeMesh(mesh as BABYLON.Mesh);
           this.highlightLayer.addMesh(
-            mesh,
+            mesh as BABYLON.Mesh,
             canPlace ? BABYLON.Color3.Green() : BABYLON.Color3.Red()
           );
+        }
 
         const forward = new BABYLON.Vector3(0, 0, 1);
         const right = BABYLON.Vector3.Cross(forward, normal).normalize();
@@ -148,95 +170,14 @@ export class PlacementController {
       }
 
       if (pi.type === BABYLON.PointerEventTypes.POINTERDOWN && pi.event.button === 0 && canPlace) {
-        for (const astro of Astronaut.allAstronauts) astro.stopWalk();
-        Rover.selectedRover?.stopMove();
-        this.placedObjects.push(this.currentRoot!);
-        const bbox = this.currentRoot!.getHierarchyBoundingVectors(true);
-        this.placedBBoxes.push({ min: bbox.min.clone(), max: bbox.max.clone() });
-
-        if (this.currentRoot!.metadata?.resource) {
-          const resourceType = this.currentRoot!.metadata.resource;
-
-          const productionRates: Record<string, number> = {
-            oxygen: 2.0,
-            food: 1.0,
-            water: 1.0,
-            energy: 30.0,
-          };
-
-          const productionRate = productionRates[resourceType] || 1.0;
-          const energyConsumption = this.currentRoot!.metadata.energyConsumption || 0;
-
-          const width = Math.max(bbox.max.x - bbox.min.x, bbox.max.z - bbox.min.z);
-          const radius = width * 1.5;
-
-          this.resourceManager.registerBuilding(
-            this.currentRoot!,
-            resourceType,
-            productionRate,
-            radius,
-            energyConsumption
-          );
-
-          this.currentRoot!.metadata.productionRate = productionRate;
-          this.currentRoot!.metadata.radius = radius;
-
-          const segments = 64;
-          const points: BABYLON.Vector3[] = [];
-
-          const ground = groundMesh;
-          const pos = this.currentRoot!.getAbsolutePosition();
-          for (let i = 0; i <= segments; i++) {
-            const angle = (2 * Math.PI * i) / segments;
-            const x = pos.x + Math.cos(angle) * radius;
-            const z = pos.z + Math.sin(angle) * radius;
-
-            const pick = this.scene.pickWithRay(
-              new BABYLON.Ray(new BABYLON.Vector3(x, 1000, z), BABYLON.Vector3.Down(), 2000),
-              (m) => m === ground
-            );
-            const y = pick?.hit && pick.pickedPoint ? pick.pickedPoint.y + 0.05 : pos.y + 0.05;
-            points.push(new BABYLON.Vector3(x, y, z));
+        if (metadata?.rocksNeeded) {
+          const resourceManager: ResourceManager = (this.scene as any).resourceManager;
+          if (!resourceManager || !resourceManager.consumeRocks(metadata.rocksNeeded)) {
+            console.warn(`Not enough rocks! Need ${metadata.rocksNeeded}`);
+            return;
           }
-
-          const circle = BABYLON.MeshBuilder.CreateLines(
-            `${resourceType}_radiusCircle_${Date.now()}`,
-            { points },
-            this.scene
-          );
-
-          circle.color = RESOURCE_COLORS[resourceType] ?? BABYLON.Color3.White();
-          circle.isPickable = false;
-          circle.alwaysSelectAsActiveMesh = false;
-          circle.setEnabled(false);
-          this.currentRoot!.metadata.radiusMesh = circle;
         }
-
-        const crowd: BABYLON.ICrowd | undefined = (this.scene as any).crowd;
-        const navPlugin: any = (this.scene as any).navigationPlugin;
-
-        if (crowd && navPlugin) {
-          const center = this.currentRoot!.position.clone();
-          const size = this.currentRoot!.getHierarchyBoundingVectors(true);
-          const agentParams: BABYLON.IAgentParameters = {
-            radius: Math.max(size.max.x - size.min.x, size.max.z - size.min.z) / 2,
-            height: size.max.y - size.min.y,
-            maxSpeed: 0,
-            maxAcceleration: 0,
-            collisionQueryRange: Math.max(size.max.x - size.min.x, size.max.z - size.min.z) * 2,
-            pathOptimizationRange: 10,
-            separationWeight: 50,
-          };
-
-          const agentIndex = crowd.addAgent(center, agentParams, this.currentRoot!);
-          if (agentIndex >= 0) this.obstacles.push(agentIndex);
-          const dt = this.scene.getEngine().getDeltaTime() / 1000;
-          crowd.update(dt);
-        }
-
-        this.cleanupPlacement();
-        this.deselect();
-        if (onPlaced) onPlaced();
+        this.placeBuilding(root, meshes, groundMesh, onPlaced);
       }
     });
 
@@ -245,26 +186,156 @@ export class PlacementController {
     });
   }
 
+  private isPositionOccupiedByAstronaut(position: BABYLON.Vector3, astronaut: Astronaut): boolean {
+    const astronautPos = astronaut.mesh.position;
+    const distance = BABYLON.Vector3.Distance(position, astronautPos);
+    return distance < 3.0;
+  }
+
+  private isPositionOccupiedByRover(position: BABYLON.Vector3, rover: Rover): boolean {
+    const roverPos = rover.mesh.position;
+    const distance = BABYLON.Vector3.Distance(position, roverPos);
+    return distance < 5.0;
+  }
+
+  private isPositionOccupiedByRock(position: BABYLON.Vector3, rock: any): boolean {
+    const rockPos = rock.mesh.position;
+    const distance = BABYLON.Vector3.Distance(position, rockPos);
+    return distance < 3.0;
+  }
+
+  private placeBuilding(
+    root: BABYLON.TransformNode,
+    meshes: BABYLON.Mesh[],
+    groundMesh: BABYLON.Mesh,
+    onPlaced?: () => void
+  ) {
+    for (const astro of Astronaut.allAstronauts) astro.stopWalk();
+    Rover.selectedRover?.stopMove();
+
+    this.placedObjects.push(root);
+    const bbox = root.getHierarchyBoundingVectors(true);
+    this.placedBBoxes.push({ min: bbox.min.clone(), max: bbox.max.clone() });
+
+    if (root.metadata?.resource) {
+      const resourceType = root.metadata.resource;
+
+      const productionRates: Record<string, number> = {
+        oxygen: 2.0,
+        food: 1.0,
+        water: 1.0,
+        energy: 30.0,
+      };
+
+      const productionRate = productionRates[resourceType] || 1.0;
+      const energyConsumption = root.metadata.energyConsumption || 0;
+
+      const width = Math.max(bbox.max.x - bbox.min.x, bbox.max.z - bbox.min.z);
+      const radius = width * 1.5;
+
+      this.resourceManager.registerBuilding(
+        root,
+        resourceType,
+        productionRate,
+        radius,
+        energyConsumption
+      );
+
+      root.metadata.productionRate = productionRate;
+      root.metadata.radius = radius;
+
+      this.createRadiusCircle(root, groundMesh, resourceType, radius);
+    }
+
+    const crowd: BABYLON.ICrowd | undefined = (this.scene as any).crowd;
+    const navPlugin: any = (this.scene as any).navigationPlugin;
+
+    if (crowd && navPlugin) {
+      const center = root.position.clone();
+      const size = root.getHierarchyBoundingVectors(true);
+      const agentParams: BABYLON.IAgentParameters = {
+        radius: Math.max(size.max.x - size.min.x, size.max.z - size.min.z) / 2,
+        height: size.max.y - size.min.y,
+        maxSpeed: 0,
+        maxAcceleration: 0,
+        collisionQueryRange: Math.max(size.max.x - size.min.x, size.max.z - size.min.z) * 2,
+        pathOptimizationRange: 10,
+        separationWeight: 50,
+      };
+
+      const agentIndex = crowd.addAgent(center, agentParams, root);
+      if (agentIndex >= 0) this.obstacles.push(agentIndex);
+      const dt = this.scene.getEngine().getDeltaTime() / 1000;
+      crowd.update(dt);
+    }
+
+    this.cleanupPlacement();
+    this.deselect();
+    if (onPlaced) onPlaced();
+  }
+
+  private createRadiusCircle(
+    building: BABYLON.TransformNode,
+    groundMesh: BABYLON.Mesh,
+    resourceType: string,
+    radius: number
+  ) {
+    const segments = 64;
+    const points: BABYLON.Vector3[] = [];
+
+    const pos = building.getAbsolutePosition();
+    for (let i = 0; i <= segments; i++) {
+      const angle = (2 * Math.PI * i) / segments;
+      const x = pos.x + Math.cos(angle) * radius;
+      const z = pos.z + Math.sin(angle) * radius;
+
+      const pick = this.scene.pickWithRay(
+        new BABYLON.Ray(new BABYLON.Vector3(x, 1000, z), BABYLON.Vector3.Down(), 2000),
+        (m) => m === groundMesh
+      );
+      const y = pick?.hit && pick.pickedPoint ? pick.pickedPoint.y + 0.05 : pos.y + 0.05;
+      points.push(new BABYLON.Vector3(x, y, z));
+    }
+
+    const circle = BABYLON.MeshBuilder.CreateLines(
+      `${resourceType}_radiusCircle_${Date.now()}`,
+      { points },
+      this.scene
+    );
+
+    circle.color = RESOURCE_COLORS[resourceType] ?? BABYLON.Color3.White();
+    circle.isPickable = false;
+    circle.alwaysSelectAsActiveMesh = false;
+    circle.setEnabled(false);
+    building.metadata.radiusMesh = circle;
+  }
+
   public cancelPlacement(): void {
     if (!this.currentRoot) return;
     this.cleanupPlacement(true);
   }
 
   private cleanupPlacement(disposeCurrent = false) {
-    if (this.pointerObserver) this.scene.onPointerObservable.remove(this.pointerObserver);
-    if (this.rotationObserver) this.scene.onBeforeRenderObservable.remove(this.rotationObserver);
-    if (disposeCurrent && this.currentRoot) this.currentRoot.dispose();
-    this.deselect();
+    if (this.pointerObserver) {
+      this.scene.onPointerObservable.remove(this.pointerObserver);
+      this.pointerObserver = undefined;
+    }
+    if (this.rotationObserver) {
+      this.scene.onBeforeRenderObservable.remove(this.rotationObserver);
+      this.rotationObserver = undefined;
+    }
 
     if (this.currentRoot) {
       for (const mesh of this.currentRoot.getChildMeshes()) {
         this.highlightLayer.removeMesh(mesh as BABYLON.Mesh);
       }
+
+      if (disposeCurrent) {
+        this.currentRoot.dispose();
+      }
     }
 
     this.currentRoot = null;
-    this.pointerObserver = undefined;
-    this.rotationObserver = undefined;
     this.rotating = false;
   }
 
@@ -286,6 +357,7 @@ export class PlacementController {
     this.clearObstacles();
     if (this.keyboardObserver) this.scene.onKeyboardObservable.remove(this.keyboardObserver);
   }
+
   private removeBuilding(building: BABYLON.TransformNode) {
     const index = this.placedObjects.indexOf(building);
     if (index !== -1) {
@@ -306,6 +378,8 @@ export class PlacementController {
     }
 
     building.dispose();
+    hideRefillButtons();
+    this.deselect();
   }
 
   public checkRefillOptions(building: BABYLON.TransformNode): {
@@ -337,6 +411,8 @@ export class PlacementController {
   }
 
   public handlePointerPick(pick: BABYLON.PickingInfo, event: PointerEvent) {
+    this.deselectAllCircles();
+
     let clickedBuilding: BABYLON.TransformNode | null = null;
     if (pick?.hit && pick.pickedMesh) {
       clickedBuilding =
@@ -344,7 +420,6 @@ export class PlacementController {
     }
 
     if (clickedBuilding) {
-      this.deselect();
       this.selectedBuilding = clickedBuilding;
       updateResourceInfo(clickedBuilding);
 
@@ -356,7 +431,7 @@ export class PlacementController {
       };
 
       showDestroyButton(clickedBuilding, () => {
-        this.removeBuilding(clickedBuilding);
+        this.removeBuilding(clickedBuilding!);
         this.selectedBuilding = null;
       });
 
@@ -372,12 +447,18 @@ export class PlacementController {
     }
   }
 
-  private deselect() {
-    if (this.selectedBuilding) {
-      if (this.selectedBuilding.metadata?.radiusMesh) {
-        this.selectedBuilding.metadata.radiusMesh.setEnabled(false);
+  private deselectAllCircles() {
+    for (const building of this.placedObjects) {
+      if (building.metadata?.radiusMesh) {
+        building.metadata.radiusMesh.setEnabled(false);
       }
+    }
+  }
 
+  private deselect() {
+    this.deselectAllCircles();
+
+    if (this.selectedBuilding) {
       for (const mesh of this.selectedBuilding.getChildMeshes()) {
         this.highlightLayer.removeMesh(mesh as BABYLON.Mesh);
       }

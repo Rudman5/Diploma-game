@@ -9,7 +9,7 @@ export const modelFiles: ModelFiles = {
       resource: 'energy',
       energyConsumption: 0,
       productionRate: 20,
-      rocksNeeded: 5,
+      rocksNeeded: 1,
     },
   },
   baseLarge: {
