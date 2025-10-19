@@ -9,6 +9,7 @@ import {
 } from '../core/createGui';
 import { ModelMetadata } from '../types';
 import { ResourceManager } from '../core/resourceManager';
+import { showAlert } from '../core/alertSystem';
 
 const RESOURCE_COLORS: Record<string, BABYLON.Color3> = {
   water: BABYLON.Color3.FromHexString('#2e90b0'),
@@ -54,7 +55,7 @@ export class PlacementController {
     metadata?: ModelMetadata
   ): Promise<void> {
     if (this.currentRoot) this.cancelPlacement();
-
+    showAlert('If you click on the selected thumbnail in menu, you can cancel placement', 'info');
     const result = await BABYLON.SceneLoader.ImportMeshAsync(
       '',
       './buildModels/',
@@ -253,14 +254,17 @@ export class PlacementController {
     if (crowd && navPlugin) {
       const center = root.position.clone();
       const size = root.getHierarchyBoundingVectors(true);
+      const buildingWidth = Math.max(size.max.x - size.min.x, size.max.z - size.min.z);
+      const agentRadius = buildingWidth / 2;
+
       const agentParams: BABYLON.IAgentParameters = {
-        radius: Math.max(size.max.x - size.min.x, size.max.z - size.min.z) / 2,
+        radius: agentRadius,
         height: size.max.y - size.min.y,
         maxSpeed: 0,
         maxAcceleration: 0,
-        collisionQueryRange: Math.max(size.max.x - size.min.x, size.max.z - size.min.z) * 2,
-        pathOptimizationRange: 10,
-        separationWeight: 50,
+        collisionQueryRange: agentRadius,
+        pathOptimizationRange: 5,
+        separationWeight: 3,
       };
 
       const agentIndex = crowd.addAgent(center, agentParams, root);
@@ -272,6 +276,10 @@ export class PlacementController {
     this.cleanupPlacement();
     this.deselect();
     if (onPlaced) onPlaced();
+    showAlert(
+      'To refill astronaut and rover, bring them inside the circle around the building, then a button will show in the menu',
+      'info'
+    );
   }
 
   private createRadiusCircle(

@@ -3,6 +3,7 @@ import { Rover } from './rover';
 import { hideLeaveButton, showLeaveButton } from '../core/createGui';
 import { InteractionTarget } from '../types';
 import { Rock } from '../types';
+import { showAlert } from '../core/alertSystem';
 
 export class Astronaut {
   public mesh!: BABYLON.AbstractMesh;
@@ -19,7 +20,7 @@ export class Astronaut {
     water: 100,
   };
   private resourceConsumptionRates = {
-    oxygen: 1,
+    oxygen: 20,
     food: 0.01,
     water: 0.02,
   };
@@ -115,7 +116,6 @@ export class Astronaut {
     const crowd: BABYLON.ICrowd | undefined = scene.crowd;
 
     if (!navPlugin?.navMesh || !crowd) {
-      console.warn('Crowd or navmesh not available.');
       return;
     }
 
@@ -424,13 +424,13 @@ export class Astronaut {
 
   private checkCriticalLevels() {
     if (this.resources.oxygen < this.criticalThresholds.oxygen) {
-      console.warn(`${this.name} has critically low oxygen!`);
+      showAlert(`${this.name} has critically low oxygen!`, 'error');
     }
     if (this.resources.food < this.criticalThresholds.food) {
-      console.warn(`${this.name} is starving!`);
+      showAlert(`${this.name} is starving!`, 'error');
     }
     if (this.resources.water < this.criticalThresholds.water) {
-      console.warn(`${this.name} is dehydrated!`);
+      showAlert(`${this.name} is dehydrated!`, 'error');
     }
   }
 
@@ -443,14 +443,6 @@ export class Astronaut {
     if (this.resources.food <= 0 && this.resources.water <= 0) {
       this.die('starvation and dehydration');
       return;
-    }
-
-    if (this.resources.food <= 0) {
-      console.warn(`${this.name} is starving!`);
-    }
-
-    if (this.resources.water <= 0) {
-      console.warn(`${this.name} is severely dehydrated!`);
     }
   }
 
@@ -479,6 +471,7 @@ export class Astronaut {
   }
 
   die(cause: string) {
+    showAlert(`${this.name} is dead!`, 'error');
     if (!this.isAlive) return;
   }
 }

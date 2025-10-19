@@ -5,37 +5,15 @@ import { Rover } from '../modelCreation/rover';
 import { moveCameraTo } from './createCamera';
 import { modelFiles } from '../constants';
 import { ResourceManager } from './resourceManager';
+import { showAlert } from './alertSystem';
 
 export function createGui(
   placementController: PlacementController,
   ground: BABYLON.GroundMesh,
   scene: BABYLON.Scene
 ) {
-  const mainMenu = document.getElementById('main-menu')!;
-  const subMenu = document.getElementById('sub-menu')!;
-  const backBtn = document.getElementById('back-btn')!;
   const modelButtonsContainer = document.getElementById('model-buttons')!;
   let activeButton: HTMLButtonElement | null = null;
-
-  mainMenu.querySelector('[data-action="buildings"]')!.addEventListener('click', () => {
-    mainMenu.classList.add('hidden');
-    subMenu.classList.remove('hidden');
-  });
-
-  mainMenu.querySelector('[data-action="test"]')!.addEventListener('click', () => {
-    console.log('Test clicked');
-  });
-
-  backBtn.addEventListener('click', () => {
-    subMenu.classList.add('hidden');
-    mainMenu.classList.remove('hidden');
-
-    if (activeButton) {
-      placementController.cancelPlacement();
-      activeButton.classList.remove('active');
-      activeButton = null;
-    }
-  });
 
   function refreshSubMenu() {
     const resourceManager: ResourceManager = (scene as any).resourceManager;
@@ -399,7 +377,7 @@ export function setupRefillButtons(scene: BABYLON.Scene, placementController: Pl
       if (refillOptions?.building && refillOptions.canRefillAstronaut) {
         const success = placementController.refillAstronautFromBuilding(refillOptions.building);
         if (success) {
-          console.log('Astronaut refilled successfully');
+          showAlert('Astronaut refilled successfully', 'success');
           if (Astronaut.selectedAstronaut) {
             updateResourceInfo(Astronaut.selectedAstronaut);
           }
@@ -414,7 +392,7 @@ export function setupRefillButtons(scene: BABYLON.Scene, placementController: Pl
       if (refillOptions?.building && refillOptions.canRefillRover) {
         const success = placementController.refillRoverFromBuilding(refillOptions.building);
         if (success) {
-          console.log('Rover refilled successfully');
+          showAlert('Rover refilled successfully', 'success');
           if (Rover.selectedRover) {
             updateResourceInfo(Rover.selectedRover);
           }

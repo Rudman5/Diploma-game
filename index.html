@@ -7,7 +7,7 @@
   </head>
   <body>
     <canvas id="renderCanvas"></canvas>
-
+    <div id="alert-container"></div>
     <div id="gui-container">
       <div class="top-container">
         <div id="resource-bar">
@@ -115,18 +115,13 @@
         </div>
       </div>
       <div class="menu-container">
-        <div id="main-menu" class="gui-menu">
-          <button class="gui-btn" data-action="buildings">Buildings</button>
-          <button class="gui-btn" data-action="test">Test</button>
-        </div>
-
-        <div id="sub-menu" class="gui-menu hidden">
-          <div id="back-btn" class="back-btn">
+        <div id="sub-menu" class="gui-menu">
+          <!-- <div id="back-btn" class="back-btn">
             <svg focusable="false" aria-hidden="true" viewBox="0 0 24 24">
               <path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20z"></path>
             </svg>
             <div class="tooltip">Back</div>
-          </div>
+          </div> -->
           <div id="model-buttons" class="scrollable-buttons"></div>
         </div>
         <div class="buttons">
@@ -363,6 +358,70 @@
     .menu-btn.model-btn.disabled:hover {
       transform: none;
       box-shadow: none;
+    }
+  </style>
+
+  <style>
+    #alert-container {
+      position: fixed;
+      top: 0;
+      left: 0;
+    }
+
+    .alert-msg {
+      background: #ff4444;
+      color: white;
+      padding: 12px 16px;
+      border-radius: 8px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+      cursor: pointer;
+      animation: slideIn 0.3s ease-out;
+      border-left: 4px solid #cc0000;
+      margin-bottom: 8px;
+      font-family: Arial, sans-serif;
+      font-size: 14px;
+      max-width: 300px;
+    }
+
+    .alert-msg.warning {
+      background: #ff9800;
+      border-left-color: #f57c00;
+    }
+
+    .alert-msg.info {
+      background: #2196f3;
+      border-left-color: #1976d2;
+    }
+
+    .alert-msg.success {
+      background: #4caf50;
+      border-left-color: #388e3c;
+    }
+
+    @keyframes slideIn {
+      from {
+        transform: translateX(100%);
+        opacity: 0;
+      }
+      to {
+        transform: translateX(0);
+        opacity: 1;
+      }
+    }
+
+    .alert-msg.fade-out {
+      animation: slideOut 0.3s ease-in forwards;
+    }
+
+    @keyframes slideOut {
+      from {
+        transform: translateX(0);
+        opacity: 1;
+      }
+      to {
+        transform: translateX(100%);
+        opacity: 0;
+      }
     }
   </style>
 </html>
