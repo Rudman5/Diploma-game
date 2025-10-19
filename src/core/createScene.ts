@@ -12,6 +12,7 @@ import {
 import { PlacementController } from '../modelCreation/placementController';
 import { createNavMesh } from './createNavMesh';
 import { Rover } from '../modelCreation/rover';
+import { RockManager } from './rockManager';
 
 export async function createScene(engine: BABYLON.Engine, canvas: HTMLCanvasElement) {
   const scene = new BABYLON.Scene(engine);
@@ -68,8 +69,8 @@ export async function createScene(engine: BABYLON.Engine, canvas: HTMLCanvasElem
 
   const astronautData = [
     { id: 'neil-armstrong', x: 0, z: 0, name: 'Neil Armstrong' },
-    { id: 'buzz-aldrin', x: 2, z: 0, name: 'Buzz Aldrin' },
-    { id: 'michael-collins', x: 4, z: 0, name: 'Michael Collins' },
+    { id: 'buzz-aldrin', x: 10, z: 0, name: 'Buzz Aldrin' },
+    { id: 'michael-collins', x: 20, z: 0, name: 'Michael Collins' },
   ];
 
   for (const data of astronautData) {
@@ -81,6 +82,7 @@ export async function createScene(engine: BABYLON.Engine, canvas: HTMLCanvasElem
     astro.playAnimation('Idle');
     astro.startResourceConsumption();
   }
+  await createNavMesh(scene, [ground]);
 
   setupAstronautThumbnails(scene, camera);
 
@@ -89,6 +91,7 @@ export async function createScene(engine: BABYLON.Engine, canvas: HTMLCanvasElem
   rover.mesh.position.set(15, 0, 0);
   rover.mesh.position.y =
     ground.getHeightAtCoordinates(rover.mesh.position.x, rover.mesh.position.z) ?? 0;
+  rover.addCrowdAgent();
 
   scene.onBeforeRenderObservable.add(() => {
     if (Astronaut.selectedAstronaut) {
@@ -115,63 +118,54 @@ export async function createScene(engine: BABYLON.Engine, canvas: HTMLCanvasElem
       a.containsMesh(pick.pickedMesh as BABYLON.AbstractMesh)
     );
 
-    let handled = false;
-
     if (event.button === 0) {
       if (clickedAstronaut) {
         Astronaut.allAstronauts.forEach((a) => a.deselect());
         rover.deselect();
         clickedAstronaut.select();
         updateResourceInfo(clickedAstronaut);
-        handled = true;
       } else if (rover.containsMesh(pick.pickedMesh as BABYLON.AbstractMesh)) {
         Astronaut.allAstronauts.forEach((a) => a.deselect());
         rover.select();
-        handled = true;
+        updateResourceInfo(rover);
       } else {
         Astronaut.allAstronauts.forEach((a) => a.deselect());
         rover.deselect();
         hideLeaveButton();
+        updateGlobalResourceDisplay(scene);
       }
     }
 
-    if (event.button === 2 && !handled) {
+    if (event.button === 2) {
       if (selectedAstronaut && pick.pickedPoint) {
         const clickedRover = rover.containsMesh(pick.pickedMesh as BABYLON.AbstractMesh);
-
+        const clickedRock = rockManager.findRockFromMesh(pick.pickedMesh as BABYLON.AbstractMesh);
+        console.log(clickedRock);
         if (clickedRover) {
-          const roverCenter = rover.mesh.getAbsolutePosition();
-          const offsetDir = rover.mesh.getDirection(new BABYLON.Vector3(2.5, 0, 0));
-          const entryPos = roverCenter.add(offsetDir.scale(2.5));
-
-          selectedAstronaut.walkTo(entryPos, 2, () => {
-            rover.addOccupant(selectedAstronaut);
-            selectedAstronaut.enterRover(rover);
-          });
-          selectedAstronaut.deselect();
-          handled = true;
+          selectedAstronaut.walkToRover(rover);
+        } else if (clickedRock) {
+          selectedAstronaut.walkToRock(clickedRock);
         } else {
+          // Regular ground movement to position
           selectedAstronaut.walkTo(pick.pickedPoint, 2);
-          selectedAstronaut.deselect();
-          handled = true;
         }
+        selectedAstronaut.deselect();
       } else if (selectedRover && pick.pickedPoint && rover.occupiedBy.length > 0) {
         rover.driveTo(pick.pickedPoint, 12);
         rover.deselect();
-        handled = true;
       }
     }
 
     placementController.handlePointerPick(pick, event);
-    if (placementController.selectedBuilding) handled = true;
-
-    if (!handled && pick.pickedPoint) {
-    }
   });
 
   const placementController = new PlacementController(scene);
   createGui(placementController, ground, scene);
-  await createNavMesh(scene, [ground]);
+
+  const rockManager = new RockManager(scene, ground);
+  (scene as any).rockManager = rockManager;
+
+  rockManager.scatterRocksAcrossMap(100);
 
   return scene;
 }

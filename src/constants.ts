@@ -9,6 +9,7 @@ export const modelFiles: ModelFiles = {
       resource: 'energy',
       energyConsumption: 0,
       productionRate: 20,
+      rocksNeeded: 5,
     },
   },
   baseLarge: {
@@ -19,6 +20,7 @@ export const modelFiles: ModelFiles = {
       resource: 'water',
       energyConsumption: 10,
       productionRate: 2,
+      rocksNeeded: 20,
     },
   },
   buildingPod: {
@@ -29,6 +31,7 @@ export const modelFiles: ModelFiles = {
       resource: 'food',
       energyConsumption: 5,
       productionRate: 2,
+      rocksNeeded: 10,
     },
   },
   laboratory: {
@@ -39,6 +42,7 @@ export const modelFiles: ModelFiles = {
       resource: 'oxygen',
       energyConsumption: 20,
       productionRate: 3,
+      rocksNeeded: 20,
     },
   },
   //   livingQuarters: {

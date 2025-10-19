@@ -56,6 +56,13 @@ export class PlacementController {
   ): Promise<void> {
     if (this.currentRoot) this.cancelPlacement();
 
+    if (metadata?.rocksNeeded) {
+      const resourceManager: ResourceManager = (this.scene as any).resourceManager;
+      if (!resourceManager || !resourceManager.consumeRocks(metadata.rocksNeeded)) {
+        console.warn(`Not enough rocks! Need ${metadata.rocksNeeded}`);
+        return;
+      }
+    }
     const result = await BABYLON.SceneLoader.ImportMeshAsync(
       '',
       './buildModels/',
@@ -380,5 +387,13 @@ export class PlacementController {
     hideRefillButtons();
 
     (this.scene as any).currentRefillOptions = null;
+  }
+
+  public canAffordBuilding(metadata: ModelMetadata): boolean {
+    const resourceManager: ResourceManager = (this.scene as any).resourceManager;
+    if (!resourceManager) return false;
+
+    const rocksNeeded = metadata.rocksNeeded || 0;
+    return resourceManager.getAvailableRocks() >= rocksNeeded;
   }
 }

@@ -9,6 +9,7 @@ export class ResourceManager {
     food: 0,
     water: 0,
     energy: 0,
+    rocks: 0,
   };
 
   private productionRates = new Map<
@@ -194,6 +195,7 @@ export class ResourceManager {
       oxygen: this.accumulatedResources.oxygen,
       food: this.accumulatedResources.food,
       water: this.accumulatedResources.water,
+      rocks: this.accumulatedResources.rocks,
       energyProduction: this.energyProduction,
       energyRequired: this.totalEnergyRequired,
       energyConsumption: this.actualEnergyConsumption,
@@ -276,5 +278,22 @@ export class ResourceManager {
       return available;
     }
     return 0;
+  }
+
+  public addRocks(amount: number) {
+    this.accumulatedResources.rocks += amount;
+    console.log(`Rocks: ${this.accumulatedResources.rocks}`);
+  }
+
+  public consumeRocks(amount: number): boolean {
+    if (this.accumulatedResources.rocks >= amount) {
+      this.accumulatedResources.rocks -= amount;
+      return true;
+    }
+    return false;
+  }
+
+  public getAvailableRocks(): number {
+    return this.accumulatedResources.rocks;
   }
 }

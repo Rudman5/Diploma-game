@@ -50,7 +50,6 @@ export class Rover {
     }
 
     await this.loadEngineSound();
-    this.addCrowdAgent();
   }
 
   addCrowdAgent() {
@@ -67,17 +66,22 @@ export class Rover {
     }
 
     const agentParams: BABYLON.IAgentParameters = {
-      radius: 3,
+      radius: 4,
       height: 2,
-      maxSpeed: 10,
+      maxSpeed: 12,
       maxAcceleration: 8,
-      collisionQueryRange: 20,
-      pathOptimizationRange: 20,
-      separationWeight: 5,
+      collisionQueryRange: 10,
+      pathOptimizationRange: 10,
+      separationWeight: 4,
     };
 
     this.crowdAgent = crowd.addAgent(nearest, agentParams, this.mesh);
     crowd.agentTeleport(this.crowdAgent, nearest);
+
+    if (this.crowdAgent >= 0) {
+      const dt = this.scene.getEngine().getDeltaTime() / 1000;
+      crowd.update(dt);
+    }
   }
 
   async driveTo(
@@ -152,13 +156,6 @@ export class Rover {
 
       if (distanceToTarget < arriveDist || velLen < speedThreshold) {
         if (this.engineSound) this.engineSound.stop();
-
-        this.mesh.position.copyFrom(navTarget);
-
-        if (crowd && this.crowdAgent != null) {
-          crowd.removeAgent(this.crowdAgent);
-          this.crowdAgent = undefined;
-        }
 
         scene.onBeforeRenderObservable.remove(this.moveObserver!);
         this.moveObserver = undefined;
@@ -243,8 +240,6 @@ export class Rover {
     const before = this.resources[type];
     this.resources[type] = Math.min(this.resourceCapacity[type], this.resources[type] + amount);
     const actualRefilled = this.resources[type] - before;
-
-    console.log(`Rover refilled ${type}: +${actualRefilled.toFixed(1)}`);
 
     return actualRefilled;
   }

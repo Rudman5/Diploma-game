@@ -1,12 +1,11 @@
 import * as BABYLON from '@babylonjs/core';
 import { Rover } from './rover';
 import { hideLeaveButton, showLeaveButton } from '../core/createGui';
-import { ResourceManager } from '../core/resourceManager';
-import { PlacementController } from './placementController';
+import { InteractionTarget } from '../types';
+import { Rock } from '../types';
 
 export class Astronaut {
   public mesh!: BABYLON.AbstractMesh;
-  private skeleton?: BABYLON.Skeleton;
   private scene: BABYLON.Scene;
   private animations = new Map<string, BABYLON.AnimationGroup>();
   private moveObserver?: BABYLON.Observer<BABYLON.Scene>;
@@ -68,7 +67,6 @@ export class Astronaut {
     }
     this.shovelParts = this.mesh.getChildMeshes().filter((m) => m.name.startsWith('Shovel_'));
     this.hideShovel();
-    this.addCrowdAgent();
   }
 
   addCrowdAgent() {
@@ -90,17 +88,27 @@ export class Astronaut {
       height: 2,
       maxSpeed: 2,
       maxAcceleration: 8,
-      collisionQueryRange: 20,
+      collisionQueryRange: 10,
       pathOptimizationRange: 10,
-      separationWeight: 3,
+      separationWeight: 1,
     };
 
     this.crowdAgent = crowd.addAgent(nearest, agentParams, this.mesh);
     crowd.agentTeleport(this.crowdAgent, nearest);
+    if (this.crowdAgent >= 0) {
+      const dt = this.scene.getEngine().getDeltaTime() / 1000;
+      crowd.update(dt);
+    }
   }
-
-  async walkTo(target: BABYLON.Vector3, speed = 2, callback?: () => void) {
+  async walkTo(
+    target: BABYLON.Vector3 | InteractionTarget,
+    speed = 2,
+    callback?: () => void,
+    arrivalDistance: number = 2.0
+  ) {
     if (!this.mesh) return;
+
+    this.stopWalk();
 
     const scene: any = this.scene;
     const navPlugin: BABYLON.RecastJSPlugin | undefined = scene.navigationPlugin;
@@ -114,24 +122,37 @@ export class Astronaut {
     this.addCrowdAgent();
     const agent = this.crowdAgent!;
 
-    let navTarget = navPlugin.getClosestPoint(target) ?? target.clone();
+    let interactionTarget: InteractionTarget | null = null;
+    let navTarget: BABYLON.Vector3;
+
+    if (this.isInteractionTarget(target)) {
+      interactionTarget = target;
+      navTarget = navPlugin.getClosestPoint(target.position) || target.position.clone();
+    } else {
+      navTarget = navPlugin.getClosestPoint(target) || target.clone();
+    }
+
     const ground = scene.getMeshByName('ground') as any;
     if (ground?.getHeightAtCoordinates) {
-      const gy = ground.getHeightAtCoordinates(navTarget.x, navTarget.z);
-      if (typeof gy === 'number') navTarget.y = gy;
+      const groundY = ground.getHeightAtCoordinates(navTarget.x, navTarget.z);
+      if (typeof groundY === 'number') navTarget.y = groundY;
     }
 
     crowd.agentGoto(agent, navTarget);
-
     this.playAnimation('Walking');
 
-    if (this.moveObserver) scene.onBeforeRenderObservable.remove(this.moveObserver);
+    let stuckCounter = 0;
+    let lastPosition = this.mesh.position.clone();
+    const stuckThreshold = 5.0;
+
     this.moveObserver = scene.onBeforeRenderObservable.add(() => {
       const dt = scene.getEngine().getDeltaTime() / 1000;
       crowd.update(dt);
 
       const pos = crowd.getAgentPosition(agent);
-      if (pos) this.mesh.position.copyFrom(pos);
+      if (pos) {
+        this.mesh.position.copyFrom(pos);
+      }
 
       const vel = crowd.getAgentVelocity(agent);
 
@@ -150,20 +171,91 @@ export class Astronaut {
         );
       }
 
-      const distanceToTarget = BABYLON.Vector3.Distance(this.mesh.position, navTarget);
-      const threshold = 0.05;
+      if (interactionTarget) {
+        const distanceToNavTarget = BABYLON.Vector3.Distance(this.mesh.position, navTarget);
+        if (distanceToNavTarget <= interactionTarget.interactionRadius) {
+          this.stopWalk();
+          interactionTarget.onInteract(this);
+          callback?.();
+          return;
+        }
 
-      if (distanceToTarget < 0.5 || vel.length() < threshold) {
-        this.playAnimation('Idle');
+        const velocity = crowd.getAgentVelocity(agent);
+        if (distanceToNavTarget < 1.0 && velocity && velocity.length() < 0.1) {
+          this.stopWalk();
+          interactionTarget.onInteract(this);
+          callback?.();
+          return;
+        }
+      }
 
-        this.mesh.position.copyFrom(navTarget);
+      const distanceToNavTarget = BABYLON.Vector3.Distance(this.mesh.position, navTarget);
+      if (!interactionTarget && distanceToNavTarget < arrivalDistance) {
+        this.stopWalk();
         callback?.();
-
-        scene.onBeforeRenderObservable.remove(this.moveObserver!);
-        this.moveObserver = undefined;
         return;
       }
+
+      const distanceMoved = BABYLON.Vector3.Distance(this.mesh.position, lastPosition);
+      if (distanceMoved < 0.1) {
+        stuckCounter += dt;
+      } else {
+        stuckCounter = 0;
+        lastPosition.copyFrom(this.mesh.position);
+      }
+
+      if (interactionTarget && stuckCounter > stuckThreshold) {
+        const distanceToTarget = BABYLON.Vector3.Distance(
+          this.mesh.position,
+          interactionTarget.position
+        );
+        if (distanceToTarget <= interactionTarget.interactionRadius * 2) {
+          this.stopWalk();
+          interactionTarget.onInteract(this);
+          callback?.();
+        }
+      }
     });
+  }
+
+  private isInteractionTarget(target: any): target is InteractionTarget {
+    return (
+      target &&
+      typeof target === 'object' &&
+      'interactionRadius' in target &&
+      'onInteract' in target
+    );
+  }
+
+  walkToRover(rover: Rover, callback?: () => void) {
+    const interactionTarget = {
+      position: rover.mesh.getAbsolutePosition(),
+      interactionRadius: 6.0,
+      onInteract: (astronaut: Astronaut) => {
+        rover.addOccupant(astronaut);
+        astronaut.enterRover(rover);
+      },
+      type: 'rover',
+    };
+
+    this.walkTo(interactionTarget, 2, callback);
+  }
+
+  walkToRock(rock: Rock, callback?: () => void) {
+    const interactionTarget = {
+      position: rock.mesh.position,
+      interactionRadius: rock.rockType === 'rockLarge' ? 5 : 3,
+      onInteract: (astronaut: Astronaut) => {
+        const rockManager = (this.scene as any).rockManager;
+        if (rockManager) {
+          rockManager.startDigging(astronaut, rock);
+        }
+        callback?.();
+      },
+      type: 'rock',
+    };
+
+    this.walkTo(interactionTarget, 2, callback);
   }
 
   stopWalk() {
@@ -382,8 +474,6 @@ export class Astronaut {
     const before = this.resources[resource];
     this.resources[resource] = Math.min(100, this.resources[resource] + amount);
     const actualRefilled = this.resources[resource] - before;
-
-    console.log(`${this.name} refilled ${resource}: +${actualRefilled.toFixed(1)}`);
 
     return actualRefilled;
   }
