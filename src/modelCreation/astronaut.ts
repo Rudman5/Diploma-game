@@ -108,10 +108,23 @@ export class Astronaut {
     arrivalDistance: number = 2.0
   ) {
     if (!this.mesh) return;
-
     this.stopWalk();
 
     const scene: any = this.scene;
+
+    const particles = new BABYLON.ParticleSystem('particles', 1000, scene);
+    particles.emitter = this.mesh;
+
+    particles.particleTexture = new BABYLON.Texture(
+      'https://assets.babylonjs.com/textures/flare.png',
+      scene
+    );
+    particles.minSize = 0;
+    particles.maxSize = 0.25;
+    particles.maxLifeTime = 0.5;
+    particles.emitRate = 50;
+
+    particles.start();
     const navPlugin: BABYLON.RecastJSPlugin | undefined = scene.navigationPlugin;
     const crowd: BABYLON.ICrowd | undefined = scene.crowd;
 
@@ -175,6 +188,7 @@ export class Astronaut {
         const distanceToNavTarget = BABYLON.Vector3.Distance(this.mesh.position, navTarget);
         if (distanceToNavTarget <= interactionTarget.interactionRadius) {
           this.stopWalk();
+          particles.stop();
           interactionTarget.onInteract(this);
           callback?.();
           return;
@@ -183,6 +197,7 @@ export class Astronaut {
         const velocity = crowd.getAgentVelocity(agent);
         if (distanceToNavTarget < 1.0 && velocity && velocity.length() < 0.1) {
           this.stopWalk();
+          particles.stop();
           interactionTarget.onInteract(this);
           callback?.();
           return;
@@ -192,6 +207,7 @@ export class Astronaut {
       const distanceToNavTarget = BABYLON.Vector3.Distance(this.mesh.position, navTarget);
       if (!interactionTarget && distanceToNavTarget < arrivalDistance) {
         this.stopWalk();
+        particles.stop();
         callback?.();
         return;
       }
@@ -211,6 +227,8 @@ export class Astronaut {
         );
         if (distanceToTarget <= interactionTarget.interactionRadius * 2) {
           this.stopWalk();
+          particles.stop();
+
           interactionTarget.onInteract(this);
           callback?.();
         }

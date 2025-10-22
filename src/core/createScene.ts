@@ -142,13 +142,11 @@ export async function createScene(engine: BABYLON.Engine, canvas: HTMLCanvasElem
       if (selectedAstronaut && pick.pickedPoint) {
         const clickedRover = rover.containsMesh(pick.pickedMesh as BABYLON.AbstractMesh);
         const clickedRock = rockManager.findRockFromMesh(pick.pickedMesh as BABYLON.AbstractMesh);
-        console.log(clickedRock);
         if (clickedRover) {
           selectedAstronaut.walkToRover(rover);
         } else if (clickedRock) {
           selectedAstronaut.walkToRock(clickedRock);
         } else {
-          // Regular ground movement to position
           selectedAstronaut.walkTo(pick.pickedPoint, 2);
         }
         selectedAstronaut.deselect();

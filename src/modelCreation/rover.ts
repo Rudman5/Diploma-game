@@ -103,7 +103,19 @@ export class Rover {
     this.addCrowdAgent();
     const agent = this.crowdAgent!;
     const ground = scene.getMeshByName('ground') as any;
+    const particles = new BABYLON.ParticleSystem('particles', 1000, scene);
+    particles.emitter = this.mesh;
 
+    particles.particleTexture = new BABYLON.Texture(
+      'https://assets.babylonjs.com/textures/flare.png',
+      scene
+    );
+    particles.minSize = 1;
+    particles.maxSize = 1.25;
+    particles.maxLifeTime = 0.5;
+    particles.emitRate = 50;
+
+    particles.start();
     let navTarget = navPlugin.getClosestPoint(target) ?? target.clone();
     if (ground?.getHeightAtCoordinates) {
       const gy = ground.getHeightAtCoordinates(navTarget.x, navTarget.z);
@@ -155,6 +167,7 @@ export class Rover {
       const speedThreshold = 0.05;
 
       if (distanceToTarget < arriveDist || velLen < speedThreshold) {
+        particles.stop();
         if (this.engineSound) this.engineSound.stop();
 
         scene.onBeforeRenderObservable.remove(this.moveObserver!);
