@@ -220,41 +220,24 @@ export class RockManager {
     if (rock.isBeingDug) return;
 
     rock.isBeingDug = true;
-
     astronaut.walkToRock(rock, () => {
       const rockPosition = rock.mesh.position.clone();
       const direction = rockPosition.subtract(astronaut.mesh.position).normalize();
       const targetYaw = Math.atan2(direction.x, direction.z) + Math.PI;
       astronaut.mesh.rotationQuaternion = BABYLON.Quaternion.RotationYawPitchRoll(targetYaw, 0, 0);
 
+      astronaut.diggingSound!.play();
       astronaut.playAnimation('Digging');
-      const particles = new BABYLON.ParticleSystem('particles', 1000, this.scene);
-      const midpoint = BABYLON.Vector3.Lerp(
-        rockPosition,
-        astronaut.mesh.position,
-        rock.rockType === 'rock' ? 0.5 : 0.8
-      );
-      particles.emitter = midpoint;
 
-      particles.particleTexture = new BABYLON.Texture(
-        'https://assets.babylonjs.com/textures/flare.png',
-        this.scene
-      );
-      particles.minSize = 0.5;
-      particles.maxSize = 0.75;
-      particles.maxLifeTime = 0.5;
-      particles.emitRate = 80;
-      particles.start();
       setTimeout(() => {
         if (rock.mesh.isDisposed()) return;
-
+        astronaut.diggingSound!.stop();
         astronaut.playAnimation('Idle');
         const resourceManager: any = (this.scene as any).resourceManager;
         if (resourceManager && resourceManager.addRocks) {
           resourceManager.addRocks(rock.rockValue);
         }
         this.removeRock(rock);
-        particles.stop();
       }, rock.digTime * 1000);
     });
   }

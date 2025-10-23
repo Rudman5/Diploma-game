@@ -66,7 +66,12 @@ export async function createScene(engine: BABYLON.Engine, canvas: HTMLCanvasElem
   // );
   camera.attachControl(canvas, true);
 
-  const audioEngine = await BABYLON.CreateAudioEngineAsync({ resumeOnInteraction: true });
+  const sound = await BABYLON.CreateSoundAsync('roverEngine', './sounds/carina-bot-aug-3.wav', {
+    loop: true,
+    autoplay: false,
+    volume: 0.1,
+  });
+  sound.play();
 
   const astronautData = [
     { id: 'neil-armstrong', x: 0, z: 0, name: 'Neil Armstrong' },

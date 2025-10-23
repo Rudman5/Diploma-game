@@ -14,6 +14,8 @@ export class Astronaut {
   private groundMesh?: BABYLON.GroundMesh;
   private crowdAgent?: number;
   private shovelParts?: BABYLON.AbstractMesh[];
+  public walkingSound?: BABYLON.StaticSound;
+  public diggingSound?: BABYLON.StaticSound;
   private resources = {
     oxygen: 100,
     food: 100,
@@ -68,6 +70,8 @@ export class Astronaut {
     }
     this.shovelParts = this.mesh.getChildMeshes().filter((m) => m.name.startsWith('Shovel_'));
     this.hideShovel();
+    await this.loadWalkingSound();
+    await this.loadDiggingSound();
   }
 
   addCrowdAgent() {
@@ -111,7 +115,6 @@ export class Astronaut {
     this.stopWalk();
 
     const scene: any = this.scene;
-
     const particles = new BABYLON.ParticleSystem('particles', 1000, scene);
     particles.emitter = this.mesh;
 
@@ -153,6 +156,7 @@ export class Astronaut {
 
     crowd.agentGoto(agent, navTarget);
     this.playAnimation('Walking');
+    this.walkingSound!.play();
 
     let stuckCounter = 0;
     let lastPosition = this.mesh.position.clone();
@@ -227,6 +231,7 @@ export class Astronaut {
         );
         if (distanceToTarget <= interactionTarget.interactionRadius * 2) {
           this.stopWalk();
+
           particles.stop();
 
           interactionTarget.onInteract(this);
@@ -277,6 +282,8 @@ export class Astronaut {
   }
 
   stopWalk() {
+    this.walkingSound?.stop();
+
     const scene: any = this.scene;
     if (this.moveObserver) {
       scene.onBeforeRenderObservable.remove(this.moveObserver);
@@ -491,5 +498,24 @@ export class Astronaut {
   die(cause: string) {
     showAlert(`${this.name} is dead!`, 'error');
     if (!this.isAlive) return;
+  }
+
+  async loadWalkingSound() {
+    const sound = await BABYLON.CreateSoundAsync('roverEngine', './sounds/walking.mp3', {
+      loop: true,
+      autoplay: false,
+      volume: 0.5,
+    });
+    this.walkingSound = sound;
+  }
+
+  async loadDiggingSound() {
+    const sound = await BABYLON.CreateSoundAsync('roverEngine', './sounds/digging.mp3', {
+      loop: true,
+      autoplay: false,
+      volume: 0.5,
+      playbackRate: 1.3,
+    });
+    this.diggingSound = sound;
   }
 }

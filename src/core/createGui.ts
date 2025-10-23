@@ -7,11 +7,30 @@ import { modelFiles } from '../constants';
 import { ResourceManager } from './resourceManager';
 import { showAlert } from './alertSystem';
 
+let clickSound: BABYLON.StaticSound | null = null;
+
+function playClickSound() {
+  if (clickSound) {
+    clickSound.play();
+  }
+}
 export function createGui(
   placementController: PlacementController,
   ground: BABYLON.GroundMesh,
   scene: BABYLON.Scene
 ) {
+  BABYLON.CreateSoundAsync('clickSound', './sounds/click.mp3', {
+    loop: false,
+    autoplay: false,
+    volume: 0.5,
+  })
+    .then((sound) => {
+      clickSound = sound;
+    })
+    .catch((error) => {
+      console.warn('Could not load click sound:', error);
+    });
+
   const modelButtonsContainer = document.getElementById('model-buttons')!;
   let activeButton: HTMLButtonElement | null = null;
 
@@ -45,6 +64,7 @@ export function createGui(
       btn.appendChild(tooltip);
 
       btn.addEventListener('click', () => {
+        playClickSound();
         if (!canAfford) {
           return;
         }
@@ -93,11 +113,13 @@ export function updateBuildingButtons(scene: BABYLON.Scene) {
   }
 }
 
-export function setupLeaveButton() {
+function setupLeaveButton() {
   const leaveBtn = document.getElementById('leave-rover-btn')!;
   if (!leaveBtn) return;
 
   leaveBtn.onclick = () => {
+    playClickSound();
+
     const astronaut = Astronaut.allAstronauts.find((a) => a.rover);
     if (!astronaut) {
       console.warn('No astronaut found inside a rover.');
@@ -146,6 +168,7 @@ export function setupAstronautThumbnails(scene: BABYLON.Scene, camera: BABYLON.U
     }
 
     thumb.addEventListener('click', () => {
+      playClickSound();
       if (astro.rover) {
         if (Rover.selectedRover && Rover.selectedRover !== astro.rover)
           Rover.selectedRover.deselect();
@@ -294,6 +317,7 @@ export function showDestroyButton(building: BABYLON.TransformNode, onDestroy: ()
   const newBtn = destroyBtn.cloneNode(true) as HTMLButtonElement;
   destroyBtn.parentNode!.replaceChild(newBtn, destroyBtn);
   newBtn.onclick = () => {
+    playClickSound();
     onDestroy();
     newBtn.style.display = 'none';
   };
@@ -373,6 +397,7 @@ export function setupRefillButtons(scene: BABYLON.Scene, placementController: Pl
 
   if (refillAstronautBtn) {
     refillAstronautBtn.onclick = () => {
+      playClickSound();
       const refillOptions = (scene as any).currentRefillOptions;
       if (refillOptions?.building && refillOptions.canRefillAstronaut) {
         const success = placementController.refillAstronautFromBuilding(refillOptions.building);
@@ -388,6 +413,7 @@ export function setupRefillButtons(scene: BABYLON.Scene, placementController: Pl
 
   if (refillRoverBtn) {
     refillRoverBtn.onclick = () => {
+      playClickSound();
       const refillOptions = (scene as any).currentRefillOptions;
       if (refillOptions?.building && refillOptions.canRefillRover) {
         const success = placementController.refillRoverFromBuilding(refillOptions.building);

@@ -1,8 +1,6 @@
 import * as BABYLON from '@babylonjs/core';
 import { Astronaut } from './astronaut';
 import { hideLeaveButton, showLeaveButton, updateResourceInfo } from '../core/createGui';
-import { ResourceManager } from '../core/resourceManager';
-import { PlacementController } from './placementController';
 
 export class Rover {
   public static mainRover: Rover;
