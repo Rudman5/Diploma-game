@@ -254,6 +254,8 @@ export function updateResourceInfo(
   const foodContainer = document.getElementById('food');
   const waterContainer = document.getElementById('water');
   const energyContainer = document.getElementById('energy');
+  const rocksContainer = document.getElementById('rocks');
+  if (rocksContainer) rocksContainer.style.display = 'none';
 
   if (nameEl) {
     if (entity instanceof Astronaut) {

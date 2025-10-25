@@ -35,7 +35,7 @@ export async function createNavMesh(
 
   navigationPlugin.createNavMesh(meshes, params);
 
-  const crowd = navigationPlugin.createCrowd(300, 30, scene);
+  const crowd = navigationPlugin.createCrowd(1200, 30, scene);
   (scene as any).crowd = crowd;
 
   (scene as any).navigationPlugin = navigationPlugin;

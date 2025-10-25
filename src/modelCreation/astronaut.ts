@@ -22,8 +22,8 @@ export class Astronaut {
     water: 100,
   };
   private resourceConsumptionRates = {
-    oxygen: 20,
-    food: 0.01,
+    oxygen: 0.2,
+    food: 0.1,
     water: 0.02,
   };
   private criticalThresholds = {

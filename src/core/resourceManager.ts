@@ -6,10 +6,10 @@ export class ResourceManager {
   private scene: BABYLON.Scene;
   private accumulatedResources: Record<string, number> = {
     oxygen: 100,
-    food: 0,
-    water: 0,
+    food: 100,
+    water: 100,
     energy: 0,
-    rocks: 100,
+    rocks: 50,
   };
 
   private productionRates = new Map<

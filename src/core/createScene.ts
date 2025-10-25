@@ -1,6 +1,6 @@
 import * as BABYLON from '@babylonjs/core';
 import '@babylonjs/loaders';
-import { createRTSCamera } from './createCamera';
+import { createRTSCamera, moveCameraTo } from './createCamera';
 import { Astronaut } from '../modelCreation/astronaut';
 import {
   createGui,
@@ -49,12 +49,57 @@ export async function createScene(engine: BABYLON.Engine, canvas: HTMLCanvasElem
     },
     scene
   ) as BABYLON.GroundMesh;
+
+  const result = await BABYLON.SceneLoader.ImportMeshAsync(
+    '',
+    './buildModels/',
+    'apolloLunarModule.glb'
+  );
+  const apolloModule = result.meshes[0];
+  apolloModule.rotation.z = Math.PI / 4;
+  const apolloLat = 0.67408;
+  const apolloLon = 23.47297;
+  const terrainMinLat = 0;
+  const terrainMaxLat = 30;
+  const terrainMinLon = 0;
+  const terrainMaxLon = 45;
+
+  const u = (apolloLon - terrainMinLon) / (terrainMaxLon - terrainMinLon);
+  const v = (apolloLat - terrainMinLat) / (terrainMaxLat - terrainMinLat);
+
+  const height = ground.getHeightAtCoordinates(u, v);
+
+  const apolloModuleCenterX = (u - 0.5) * groundWidth;
+  const apolloModuleCenterZ = (v - 0.5) * groundLength;
+
+  const astronautData = [
+    {
+      id: 'neil-armstrong',
+      x: apolloModuleCenterX + 7,
+      z: apolloModuleCenterZ + 5,
+      name: 'Neil Armstrong',
+    },
+    {
+      id: 'buzz-aldrin',
+      x: apolloModuleCenterX + 5,
+      z: apolloModuleCenterZ + 4,
+      name: 'Buzz Aldrin',
+    },
+    {
+      id: 'michael-collins',
+      x: apolloModuleCenterX + 5,
+      z: apolloModuleCenterZ + 8,
+      name: 'Michael Collins',
+    },
+  ];
+
   ground.freezeWorldMatrix();
   ground.material = groundMaterial;
   ground.isPickable = true;
   ground.metadata = { isGround: true };
 
   const camera = createRTSCamera(canvas, engine, scene, groundWidth, groundLength);
+
   // Testing purposes
   // const camera = new BABYLON.ArcRotateCamera(
   //   'Camera',
@@ -73,12 +118,6 @@ export async function createScene(engine: BABYLON.Engine, canvas: HTMLCanvasElem
   });
   sound.play();
 
-  const astronautData = [
-    { id: 'neil-armstrong', x: 0, z: 0, name: 'Neil Armstrong' },
-    { id: 'buzz-aldrin', x: 10, z: 0, name: 'Buzz Aldrin' },
-    { id: 'michael-collins', x: 20, z: 0, name: 'Michael Collins' },
-  ];
-
   for (const data of astronautData) {
     const astro = new Astronaut(scene, ground, data.id, data.name);
     await astro.load();
@@ -90,11 +129,39 @@ export async function createScene(engine: BABYLON.Engine, canvas: HTMLCanvasElem
   }
   await createNavMesh(scene, [ground]);
 
+  const crowd: BABYLON.ICrowd | undefined = scene.crowd;
+  const navPlugin: BABYLON.RecastJSPlugin | undefined = scene.navigationPlugin;
+
+  apolloModule.position.x = apolloModuleCenterX;
+  apolloModule.position.z = apolloModuleCenterZ;
+  apolloModule.position.y = height;
+  if (crowd && navPlugin) {
+    const center = apolloModule.position.clone();
+    const size = apolloModule.getHierarchyBoundingVectors(true);
+    const buildingWidth = Math.max(size.max.x - size.min.x, size.max.z - size.min.z);
+    const agentRadius = buildingWidth / 2;
+
+    const agentParams: BABYLON.IAgentParameters = {
+      radius: agentRadius,
+      height: size.max.y - size.min.y,
+      maxSpeed: 0,
+      maxAcceleration: 0,
+      collisionQueryRange: agentRadius,
+      pathOptimizationRange: 5,
+      separationWeight: 3,
+    };
+
+    crowd.addAgent(center, agentParams, apolloModule);
+    const dt = scene.getEngine().getDeltaTime() / 1000;
+    crowd.update(dt);
+  }
+  moveCameraTo(camera, apolloModule.position);
+
   setupAstronautThumbnails(scene, camera);
 
   const rover = new Rover(scene, ground);
   await rover.load();
-  rover.mesh.position.set(15, 0, 0);
+  rover.mesh.position.set(apolloModuleCenterX + 15, 0, apolloModuleCenterZ + 15);
   rover.mesh.position.y =
     ground.getHeightAtCoordinates(rover.mesh.position.x, rover.mesh.position.z) ?? 0;
   rover.addCrowdAgent();
@@ -170,7 +237,7 @@ export async function createScene(engine: BABYLON.Engine, canvas: HTMLCanvasElem
   const rockManager = new RockManager(scene, ground);
   (scene as any).rockManager = rockManager;
 
-  rockManager.scatterRocksAcrossMap(100);
+  rockManager.scatterRocksAcrossMap(1000);
 
   return scene;
 }

@@ -9,7 +9,7 @@ export const modelFiles: ModelFiles = {
       resource: 'energy',
       energyConsumption: 0,
       productionRate: 20,
-      rocksNeeded: 1,
+      rocksNeeded: 5,
     },
   },
   baseLarge: {
@@ -41,8 +41,17 @@ export const modelFiles: ModelFiles = {
       name: 'Oxygen plant',
       resource: 'oxygen',
       energyConsumption: 20,
-      productionRate: 3,
-      rocksNeeded: 20,
+      productionRate: 4,
+      rocksNeeded: 15,
+    },
+  },
+  landingPad: {
+    file: 'landingPad.glb',
+    img: 'landingPadThumb.png',
+    metadata: {
+      name: 'Artemis landing pad',
+      energyConsumption: 0,
+      rocksNeeded: 50,
     },
   },
   //   livingQuarters: {

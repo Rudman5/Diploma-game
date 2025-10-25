@@ -10,7 +10,6 @@ export class RockManager {
   private groundMesh: BABYLON.GroundMesh;
   private crowd: BABYLON.ICrowd;
   private navPlugin: BABYLON.RecastJSPlugin;
-  private mapSize: number = 500;
 
   constructor(scene: BABYLON.Scene, groundMesh: BABYLON.GroundMesh) {
     this.scene = scene;
@@ -19,7 +18,7 @@ export class RockManager {
     this.navPlugin = (scene as any).navigationPlugin;
   }
 
-  public scatterRocksAcrossMap(count: number = 50) {
+  public scatterRocksAcrossMap(count: number) {
     const smallRockCount = Math.floor(count * 0.7);
     const largeRockCount = count - smallRockCount;
 
@@ -32,26 +31,23 @@ export class RockManager {
     }
   }
 
-  public explodeRocks(center: BABYLON.Vector3, count: number = 10, radius: number = 20) {
-    const smallRockCount = Math.floor(count * 0.7);
-    const largeRockCount = count - smallRockCount;
-
-    for (let i = 0; i < smallRockCount; i++) {
-      this.createRandomRock(center, radius, 'rock', 1, 5);
-    }
-
-    for (let i = 0; i < largeRockCount; i++) {
-      this.createRandomRock(center, radius, 'rockLarge', 3, 12);
-    }
-  }
-
   private async createRandomRockOnMap(rockType: RockType, rockValue: number, digTime: number) {
     let attempts = 0;
     let position: BABYLON.Vector3;
 
+    const boundingInfo = this.groundMesh.getBoundingInfo();
+    const min = boundingInfo.boundingBox.minimum;
+    const max = boundingInfo.boundingBox.maximum;
+
+    const padding = 10;
+    const minX = min.x + padding;
+    const maxX = max.x - padding;
+    const minZ = min.z + padding;
+    const maxZ = max.z - padding;
+
     do {
-      const x = (Math.random() - 0.5) * this.mapSize;
-      const z = (Math.random() - 0.5) * this.mapSize;
+      const x = minX + Math.random() * (maxX - minX);
+      const z = minZ + Math.random() * (maxZ - minZ);
 
       const groundY = this.groundMesh.getHeightAtCoordinates(x, z);
       if (groundY === null) {
@@ -67,44 +63,7 @@ export class RockManager {
       }
 
       break;
-    } while (attempts < 20);
-
-    if (!position!) return;
-
-    await this.createRock(position, rockType, rockValue, digTime);
-  }
-
-  private async createRandomRock(
-    center: BABYLON.Vector3,
-    radius: number,
-    rockType: RockType,
-    rockValue: number,
-    digTime: number
-  ) {
-    let attempts = 0;
-    let position: BABYLON.Vector3;
-
-    do {
-      const angle = Math.random() * Math.PI * 2;
-      const distance = Math.random() * radius;
-      const x = center.x + Math.cos(angle) * distance;
-      const z = center.z + Math.sin(angle) * distance;
-
-      const groundY = this.groundMesh.getHeightAtCoordinates(x, z);
-      if (groundY === null) {
-        attempts++;
-        continue;
-      }
-
-      position = new BABYLON.Vector3(x, groundY, z);
-
-      if (this.isPositionOccupied(position, 5)) {
-        attempts++;
-        continue;
-      }
-
-      break;
-    } while (attempts < 10);
+    } while (attempts < 50);
 
     if (!position!) return;
 
@@ -187,7 +146,6 @@ export class RockManager {
 
       obstacleId = this.crowd.addAgent(finalPosition, agentParams, rockMesh);
 
-      // Single gentle update
       setTimeout(() => {
         if (this.crowd && obstacleId !== null) {
           this.crowd.update(0.016);

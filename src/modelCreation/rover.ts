@@ -11,9 +11,9 @@ export class Rover {
   private moveObserver?: BABYLON.Observer<BABYLON.Scene>;
   private _hl?: BABYLON.HighlightLayer;
   public resources = {
-    oxygen: 500,
-    food: 500,
-    water: 500,
+    oxygen: 0,
+    food: 0,
+    water: 0,
   };
   private resourceCapacity = {
     oxygen: 500,
