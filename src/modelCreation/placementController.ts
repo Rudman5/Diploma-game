@@ -218,6 +218,12 @@ export class PlacementController {
     const bbox = root.getHierarchyBoundingVectors(true);
     this.placedBBoxes.push({ min: bbox.min.clone(), max: bbox.max.clone() });
 
+    const isLandingPad = root.metadata?.name === 'Artemis landing pad';
+
+    if (isLandingPad) {
+      this.spawnArtemisRocket(root);
+    }
+
     if (root.metadata?.resource) {
       const resourceType = root.metadata.resource;
 
@@ -244,8 +250,8 @@ export class PlacementController {
 
       root.metadata.productionRate = productionRate;
       root.metadata.radius = radius;
-
-      this.createRadiusCircle(root, groundMesh, resourceType, radius);
+      if (resourceType !== 'energy')
+        this.createRadiusCircle(root, groundMesh, resourceType, radius);
     }
 
     const crowd: BABYLON.ICrowd | undefined = (this.scene as any).crowd;
@@ -484,5 +490,147 @@ export class PlacementController {
 
     const rocksNeeded = metadata.rocksNeeded || 0;
     return resourceManager.getAvailableRocks() >= rocksNeeded;
+  }
+  private async spawnArtemisRocket(landingPad: BABYLON.TransformNode): Promise<void> {
+    try {
+      const result = await BABYLON.SceneLoader.ImportMeshAsync(
+        '',
+        './buildModels/',
+        'artemisRocket.glb',
+        this.scene
+      );
+
+      const rocketRoot = new BABYLON.TransformNode('artemisRocket', this.scene);
+      const meshes = result.meshes.filter((m): m is BABYLON.Mesh => m instanceof BABYLON.Mesh);
+      meshes.forEach((mesh) => {
+        mesh.parent = rocketRoot;
+      });
+
+      const landingPadPos = landingPad.getAbsolutePosition();
+      const landingPadBBox = landingPad.getHierarchyBoundingVectors(true);
+      const landingPadHeight = landingPadBBox.max.y - landingPadBBox.min.y;
+
+      const startHeight = 50;
+      rocketRoot.position = new BABYLON.Vector3(
+        landingPadPos.x,
+        landingPadPos.y + startHeight,
+        landingPadPos.z
+      );
+
+      const targetPosition = new BABYLON.Vector3(
+        landingPadPos.x,
+        landingPadPos.y + landingPadHeight + 0.1,
+        landingPadPos.z
+      );
+
+      await this.animateRocketLanding(rocketRoot, targetPosition, landingPad);
+    } catch (error) {
+      console.error('Failed to spawn Artemis rocket:', error);
+    }
+  }
+
+  private async animateRocketLanding(
+    rocket: BABYLON.TransformNode,
+    targetPosition: BABYLON.Vector3,
+    landingPad: BABYLON.TransformNode
+  ): Promise<void> {
+    const sound = await BABYLON.CreateSoundAsync('rocketLanding', './sounds/rocketLanding.mp3', {
+      loop: false,
+      autoplay: true,
+      volume: 1.5,
+    });
+
+    return new Promise((resolve) => {
+      const descentAnim1 = new BABYLON.Animation(
+        'rocketDescent1',
+        'position',
+        30,
+        BABYLON.Animation.ANIMATIONTYPE_VECTOR3,
+        BABYLON.Animation.ANIMATIONLOOPMODE_CONSTANT
+      );
+
+      const startPos = rocket.position.clone();
+      const midPos = new BABYLON.Vector3(targetPosition.x, targetPosition.y + 10, targetPosition.z);
+
+      const keys1 = [
+        { frame: 0, value: startPos },
+        { frame: 60, value: midPos },
+      ];
+      descentAnim1.setKeys(keys1);
+
+      const descentAnim2 = new BABYLON.Animation(
+        'rocketDescent2',
+        'position',
+        30,
+        BABYLON.Animation.ANIMATIONTYPE_VECTOR3,
+        BABYLON.Animation.ANIMATIONLOOPMODE_CONSTANT
+      );
+
+      const keys2 = [
+        { frame: 0, value: midPos },
+        { frame: 120, value: targetPosition },
+      ];
+      descentAnim2.setKeys(keys2);
+
+      const animGroup1 = new BABYLON.AnimationGroup('DescentPhase1');
+      animGroup1.addTargetedAnimation(descentAnim1, rocket);
+      const animGroup2 = new BABYLON.AnimationGroup('DescentPhase2');
+      animGroup2.addTargetedAnimation(descentAnim2, rocket);
+      animGroup1.play(false);
+
+      animGroup1.onAnimationEndObservable.add(() => {
+        this.createLandingParticles(rocket, this.scene);
+        animGroup2.play(false);
+        animGroup2.onAnimationEndObservable.add(() => {
+          landingPad.metadata.hasRocket = true;
+          landingPad.metadata.rocket = rocket;
+          resolve();
+        });
+      });
+    });
+  }
+
+  private createLandingParticles(rocket: BABYLON.TransformNode, scene: BABYLON.Scene): void {
+    const particleSystem = new BABYLON.ParticleSystem('rocketExhaust', 2000, scene);
+
+    particleSystem.particleTexture = new BABYLON.Texture(
+      'https://assets.babylonjs.com/textures/flare.png',
+      scene
+    );
+
+    const emitter = new BABYLON.Mesh('emitter', scene);
+    emitter.parent = rocket;
+    emitter.position.y = -2;
+
+    particleSystem.emitter = emitter;
+    particleSystem.minEmitBox = new BABYLON.Vector3(-0.5, 0, -0.5);
+    particleSystem.maxEmitBox = new BABYLON.Vector3(0.5, 0, 0.5);
+    particleSystem.color1 = new BABYLON.Color4(1, 0.5, 0, 1.0);
+    particleSystem.color2 = new BABYLON.Color4(1, 0, 0, 1.0);
+    particleSystem.colorDead = new BABYLON.Color4(0, 0, 0, 0.0);
+    particleSystem.minSize = 0.5;
+    particleSystem.maxSize = 2.0;
+    particleSystem.minLifeTime = 0.1;
+    particleSystem.maxLifeTime = 0.3;
+    particleSystem.emitRate = 1000;
+    particleSystem.blendMode = BABYLON.ParticleSystem.BLENDMODE_ONEONE;
+    particleSystem.gravity = new BABYLON.Vector3(0, -5, 0);
+    particleSystem.direction1 = new BABYLON.Vector3(0, -1, 0);
+    particleSystem.direction2 = new BABYLON.Vector3(0, -1.5, 0);
+    particleSystem.minAngularSpeed = 0;
+    particleSystem.maxAngularSpeed = Math.PI;
+    particleSystem.minEmitPower = 5;
+    particleSystem.maxEmitPower = 10;
+    particleSystem.updateSpeed = 0.005;
+
+    particleSystem.start();
+
+    setTimeout(() => {
+      particleSystem.stop();
+      setTimeout(() => {
+        particleSystem.dispose();
+        emitter.dispose();
+      }, 3000);
+    }, 3000);
   }
 }
