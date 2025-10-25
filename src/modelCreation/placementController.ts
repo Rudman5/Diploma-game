@@ -534,7 +534,7 @@ export class PlacementController {
     targetPosition: BABYLON.Vector3,
     landingPad: BABYLON.TransformNode
   ): Promise<void> {
-    const sound = await BABYLON.CreateSoundAsync('rocketLanding', './sounds/rocketLanding.mp3', {
+    await BABYLON.CreateSoundAsync('rocketLanding', './sounds/rocketLanding.mp3', {
       loop: false,
       autoplay: true,
       volume: 1.5,

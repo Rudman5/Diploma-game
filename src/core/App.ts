@@ -12,11 +12,11 @@ export class App {
   }
 
   async run() {
-      const audioEngine = await BABYLON.CreateAudioEngineAsync({ resumeOnInteraction: true });
-    
+    const audioEngine = await BABYLON.CreateAudioEngineAsync({ resumeOnInteraction: true });
+
     this.scene = await createScene(this.engine, this.canvas);
 
-    this.scene.debugLayer.show({ overlay: true });
+    // this.scene.debugLayer.show({ overlay: true });
 
     this.engine.runRenderLoop(() => this.scene.render());
   }

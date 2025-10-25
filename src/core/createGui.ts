@@ -8,12 +8,16 @@ import { ResourceManager } from './resourceManager';
 import { showAlert } from './alertSystem';
 
 let clickSound: BABYLON.StaticSound | null = null;
+let landingPadTargetArea: { center: BABYLON.Vector3; radius: number } | null = null;
+let distanceUpdateInterval: number | null = null;
+let landingPadUnlocked = false;
 
 function playClickSound() {
   if (clickSound) {
     clickSound.play();
   }
 }
+
 export function createGui(
   placementController: PlacementController,
   ground: BABYLON.GroundMesh,
@@ -30,6 +34,14 @@ export function createGui(
     .catch((error) => {
       console.warn('Could not load click sound:', error);
     });
+
+  landingPadTargetArea = {
+    center: new BABYLON.Vector3(-1889.55, 0, 1214.24),
+    // center: new BABYLON.Vector3(120, 0, -1594.7614144),
+    radius: 50,
+  };
+  createLandingPadTargetCircle(scene, ground);
+  startLandingPadDistanceTracking(scene);
 
   const modelButtonsContainer = document.getElementById('model-buttons')!;
   let activeButton: HTMLButtonElement | null = null;
@@ -53,10 +65,16 @@ export function createGui(
       const rockCost = data.metadata.rocksNeeded || 0;
       const canAfford = resourceManager ? resourceManager.getAvailableRocks() >= rockCost : true;
 
+      const isLandingPad = data.metadata.name === 'Artemis landing pad';
+
       if (!canAfford) {
         btn.classList.add('disabled');
         tooltip.textContent = `${data.metadata.name} (Cost: ${rockCost} rocks) - Not enough rocks`;
         btn.title = `Requires ${rockCost} rocks`;
+      } else if (isLandingPad && !landingPadUnlocked) {
+        btn.classList.add('disabled');
+        tooltip.textContent = `${data.metadata.name} (Cost: ${rockCost} rocks) - Bring an astronaut to the landing zone first`;
+        btn.title = 'Bring an astronaut to the landing zone first';
       } else {
         tooltip.textContent = `${data.metadata.name} (Cost: ${rockCost} rocks)`;
       }
@@ -65,6 +83,13 @@ export function createGui(
 
       btn.addEventListener('click', () => {
         playClickSound();
+        if (btn.classList.contains('disabled')) {
+          if (isLandingPad && !landingPadUnlocked) {
+            showAlert('Bring an astronaut to the landing zone first!', 'warning');
+          }
+          return;
+        }
+
         if (!canAfford) {
           return;
         }
@@ -312,6 +337,7 @@ export function updateResourceInfo(
     }
   }
 }
+
 export function showDestroyButton(building: BABYLON.TransformNode, onDestroy: () => void) {
   const destroyBtn = document.getElementById('destroy-building-btn')!;
   if (destroyBtn) destroyBtn.style.display = 'inline-flex';
@@ -329,6 +355,7 @@ export function hideDestroyButton() {
   const destroyBtn = document.getElementById('destroy-building-btn')!;
   if (destroyBtn) destroyBtn.style.display = 'none';
 }
+
 export function updateGlobalResourceDisplay(scene: BABYLON.Scene) {
   const resourceManager: ResourceManager = (scene as any).resourceManager;
   if (!resourceManager) return;
@@ -393,6 +420,7 @@ export function updateGlobalResourceDisplay(scene: BABYLON.Scene) {
     rocksEl.textContent = `${Math.floor(resources.rocks)}`;
   }
 }
+
 export function setupRefillButtons(scene: BABYLON.Scene, placementController: PlacementController) {
   const refillAstronautBtn = document.getElementById('refill-astronaut');
   const refillRoverBtn = document.getElementById('refill-rover');
@@ -450,4 +478,154 @@ export function hideRefillButtons() {
 
   if (refillAstronautBtn) refillAstronautBtn.style.display = 'none';
   if (refillRoverBtn) refillRoverBtn.style.display = 'none';
+}
+
+function startLandingPadDistanceTracking(scene: BABYLON.Scene) {
+  if (distanceUpdateInterval) {
+    clearInterval(distanceUpdateInterval);
+  }
+
+  distanceUpdateInterval = window.setInterval(() => {
+    updateLandingPadDistanceInfo(scene);
+  }, 500);
+}
+
+function updateLandingPadDistanceInfo(scene: BABYLON.Scene) {
+  if (!landingPadTargetArea) return;
+
+  const closestInfo = findClosestAstronautToLandingPad();
+  const distanceElement = document.getElementById('landing-distance');
+
+  if (!distanceElement) return;
+
+  if (Astronaut.allAstronauts.length > 0) {
+    if (closestInfo) {
+      const distance = Math.floor(closestInfo.distance);
+      distanceElement.textContent = `${distance}m`;
+
+      if (distance <= landingPadTargetArea.radius) {
+        if (!landingPadUnlocked) {
+          landingPadUnlocked = true;
+          unlockLandingPadButton();
+          showAlert(
+            `${closestInfo.astronaut.name} has reached the landing zone! Landing pad unlocked!`,
+            'success'
+          );
+        }
+      }
+    } else {
+      distanceElement.textContent = '-';
+      distanceElement.style.color = '#ffffff';
+    }
+  }
+}
+
+function findClosestAstronautToLandingPad(): { astronaut: Astronaut; distance: number } | null {
+  if (!landingPadTargetArea || Astronaut.allAstronauts.length === 0) {
+    return null;
+  }
+
+  let closestAstronaut: Astronaut | null = null;
+  let minDistance = Number.MAX_VALUE;
+
+  for (const astronaut of Astronaut.allAstronauts) {
+    let position: BABYLON.Vector3;
+
+    if (astronaut.rover && astronaut.rover.mesh) {
+      position = astronaut.rover.mesh.position;
+    } else if (astronaut.mesh) {
+      position = astronaut.mesh.position;
+    } else {
+      continue;
+    }
+
+    const distance = BABYLON.Vector3.Distance(position, landingPadTargetArea.center);
+
+    if (distance < minDistance) {
+      minDistance = distance;
+      closestAstronaut = astronaut;
+    }
+  }
+  console.log(closestAstronaut);
+  return closestAstronaut ? { astronaut: closestAstronaut, distance: minDistance } : null;
+}
+
+function unlockLandingPadButton() {
+  const landingPadButton = findLandingPadButton();
+  if (landingPadButton) {
+    landingPadButton.classList.remove('disabled');
+    landingPadButton.title = 'Place Landing Pad';
+
+    landingPadButton.style.border = '2px solid #4CAF50';
+    landingPadButton.style.boxShadow = '0 0 10px #4CAF50';
+
+    setTimeout(() => {
+      if (landingPadButton) {
+        landingPadButton.style.border = '';
+        landingPadButton.style.boxShadow = '';
+      }
+    }, 2000);
+
+    const refreshSubMenu = (window as any).refreshBuildingMenu;
+    if (refreshSubMenu) {
+      refreshSubMenu();
+    }
+  }
+}
+
+function findLandingPadButton(): HTMLButtonElement | null {
+  const modelButtonsContainer = document.getElementById('model-buttons');
+  if (!modelButtonsContainer) return null;
+
+  const buttons = modelButtonsContainer.querySelectorAll('.model-btn');
+  for (const button of buttons) {
+    const img = button.querySelector('img');
+    if (img) {
+      const altText = img.alt.toLowerCase();
+      if (altText.includes('landing') || altText.includes('landingpad')) {
+        return button as HTMLButtonElement;
+      }
+    }
+  }
+
+  return null;
+}
+
+export function isPositionInLandingPadArea(position: BABYLON.Vector3): boolean {
+  if (!landingPadTargetArea) return false;
+
+  const distance = BABYLON.Vector3.Distance(position, landingPadTargetArea.center);
+  return distance <= landingPadTargetArea.radius;
+}
+
+function createLandingPadTargetCircle(scene: BABYLON.Scene, ground: BABYLON.GroundMesh) {
+  const segments = 64;
+  const points: BABYLON.Vector3[] = [];
+  const center = landingPadTargetArea!.center;
+  const radius = landingPadTargetArea!.radius;
+
+  for (let i = 0; i <= segments; i++) {
+    const angle = (2 * Math.PI * i) / segments;
+    const x = center.x + Math.cos(angle) * radius;
+    const z = center.z + Math.sin(angle) * radius;
+
+    const pick = scene.pickWithRay(
+      new BABYLON.Ray(new BABYLON.Vector3(x, 1000, z), BABYLON.Vector3.Down(), 2000),
+      (m) => m === ground
+    );
+    const y = pick?.hit && pick.pickedPoint ? pick.pickedPoint.y + 0.1 : center.y + 0.1;
+
+    points.push(new BABYLON.Vector3(x, y, z));
+  }
+
+  const circle = BABYLON.MeshBuilder.CreateLines(
+    'landingPadTargetCircle',
+    { points: points },
+    scene
+  );
+
+  circle.color = new BABYLON.Color3(0, 1, 0);
+  circle.alpha = 0.7;
+  circle.isPickable = false;
+  return circle;
 }
