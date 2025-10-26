@@ -1,9 +1,12 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import * as BABYLON from '@babylonjs/core';
 import { Rover } from './rover';
 import { hideLeaveButton, showLeaveButton } from '../core/createGui';
 import { InteractionTarget } from '../types';
 import { Rock } from '../types';
 import { showAlert } from '../core/alertSystem';
+import { gameOver } from '../core/App';
 
 export class Astronaut {
   public mesh!: BABYLON.AbstractMesh;
@@ -159,7 +162,7 @@ export class Astronaut {
     this.walkingSound!.play();
 
     let stuckCounter = 0;
-    let lastPosition = this.mesh.position.clone();
+    const lastPosition = this.mesh.position.clone();
     const stuckThreshold = 5.0;
 
     this.moveObserver = scene.onBeforeRenderObservable.add(() => {
@@ -461,12 +464,12 @@ export class Astronaut {
 
   private checkDeathConditions() {
     if (this.resources.oxygen <= 0) {
-      this.die('suffocation');
+      this.die();
       return;
     }
 
     if (this.resources.food <= 0 && this.resources.water <= 0) {
-      this.die('starvation and dehydration');
+      this.die();
       return;
     }
   }
@@ -495,9 +498,9 @@ export class Astronaut {
     return actualRefilled;
   }
 
-  die(cause: string) {
-    showAlert(`${this.name} is dead!`, 'error');
-    if (!this.isAlive) return;
+  die() {
+    gameOver(this);
+    return;
   }
 
   async loadWalkingSound() {

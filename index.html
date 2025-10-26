@@ -7,6 +7,24 @@
   </head>
   <body>
     <canvas id="renderCanvas"></canvas>
+    <div class="game-details">
+      <div id="game-over" class="hidden">
+        <div>Game Over</div>
+        <div id="astronaut-name"></div>
+        <br />
+        <div class="gui-btn" id="start-new" style="width: auto; padding: 0px 20px; cursor: pointer">
+          Start new game
+        </div>
+      </div>
+      <div id="game-won" class="hidden">
+        <div>Mission Accomplished!</div>
+        <div>
+          Against all odds, your crew has triumphed over the challenges of space exploration. The
+          Artemis rocket is now en route to Earth, carrying your victorious astronauts and priceless
+          scientific discoveries back to a hero's welcome.
+        </div>
+      </div>
+    </div>
     <div id="alert-container"></div>
     <div id="gui-container">
       <div class="top-container">
@@ -261,6 +279,7 @@
     .menu-btn,
     .model-btn,
     .menu-btn.model-btn {
+      cursor: pointer;
       text-align: center;
       box-sizing: border-box;
       width: 80px;
@@ -363,6 +382,113 @@
     .menu-btn.model-btn.disabled:hover {
       transform: none;
       box-shadow: none;
+    }
+
+    .game-details {
+      position: fixed;
+      top: 0;
+      left: 0;
+      z-index: 10001;
+      width: 100vw;
+      height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      background: rgba(0, 0, 0, 0.85);
+      backdrop-filter: blur(5px);
+    }
+
+    #game-over,
+    #game-won {
+      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+      border: 2px solid #00ffff;
+      border-radius: 20px;
+      padding: 40px;
+      text-align: center;
+      color: white;
+      box-shadow: 0 0 30px rgba(0, 255, 255, 0.3);
+      max-width: 500px;
+      width: 90%;
+      animation: fadeInScale 0.5s ease-out;
+    }
+
+    #game-over {
+      border-color: #ff4444;
+      box-shadow: 0 0 30px rgba(255, 68, 68, 0.3);
+    }
+
+    #game-won {
+      border-color: #44ff44;
+      box-shadow: 0 0 30px rgba(68, 255, 68, 0.3);
+    }
+
+    #game-over > div:first-child,
+    #game-won > div:first-child {
+      font-size: 2.5em;
+      font-weight: bold;
+      margin-bottom: 20px;
+      text-transform: uppercase;
+      letter-spacing: 2px;
+    }
+
+    #game-over > div:first-child {
+      color: #ff4444;
+      text-shadow: 0 0 10px rgba(255, 68, 68, 0.5);
+    }
+
+    #game-won > div:first-child {
+      color: #44ff44;
+      text-shadow: 0 0 10px rgba(68, 255, 68, 0.5);
+    }
+
+    #astronaut-name {
+      font-size: 1.8em;
+      color: #fff;
+      margin: 15px 0;
+      text-shadow: 0 0 8px rgba(0, 255, 255, 0.5);
+      font-weight: bold;
+    }
+
+    #game-won > div:nth-child(2) {
+      font-size: 1.2em;
+      margin: 20px 0;
+      line-height: 1.5;
+      color: #cccccc;
+    }
+
+    @keyframes fadeInScale {
+      from {
+        opacity: 0;
+        transform: scale(0.8);
+      }
+      to {
+        opacity: 1;
+        transform: scale(1);
+      }
+    }
+
+    #game-over::before,
+    #game-won::before {
+      content: '';
+      position: absolute;
+      top: -2px;
+      left: -2px;
+      right: -2px;
+      bottom: -2px;
+      background: linear-gradient(45deg, transparent, rgba(255, 255, 255, 0.1), transparent);
+      border-radius: 22px;
+      animation: shimmer 3s ease-in-out infinite;
+      z-index: -1;
+    }
+
+    @keyframes shimmer {
+      0%,
+      100% {
+        opacity: 0.3;
+      }
+      50% {
+        opacity: 0.7;
+      }
     }
   </style>
 

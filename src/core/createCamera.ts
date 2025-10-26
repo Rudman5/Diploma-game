@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
 import {
   Engine,
   Scene,
@@ -9,7 +10,6 @@ import {
   TmpVectors,
   PointerEventTypes,
   ICameraInput,
-  AbstractMesh,
 } from '@babylonjs/core';
 
 enum ECameraMovement {

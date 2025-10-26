@@ -1,3 +1,5 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { Astronaut } from '../modelCreation/astronaut';
 import { PlacementController } from '../modelCreation/placementController';
 import * as BABYLON from '@babylonjs/core';
@@ -41,7 +43,7 @@ export function createGui(
     radius: 50,
   };
   createLandingPadTargetCircle(scene, ground);
-  startLandingPadDistanceTracking(scene);
+  startLandingPadDistanceTracking();
 
   const modelButtonsContainer = document.getElementById('model-buttons')!;
   let activeButton: HTMLButtonElement | null = null;
@@ -480,17 +482,17 @@ export function hideRefillButtons() {
   if (refillRoverBtn) refillRoverBtn.style.display = 'none';
 }
 
-function startLandingPadDistanceTracking(scene: BABYLON.Scene) {
+function startLandingPadDistanceTracking() {
   if (distanceUpdateInterval) {
     clearInterval(distanceUpdateInterval);
   }
 
   distanceUpdateInterval = window.setInterval(() => {
-    updateLandingPadDistanceInfo(scene);
+    updateLandingPadDistanceInfo();
   }, 500);
 }
 
-function updateLandingPadDistanceInfo(scene: BABYLON.Scene) {
+function updateLandingPadDistanceInfo() {
   if (!landingPadTargetArea) return;
 
   const closestInfo = findClosestAstronautToLandingPad();
@@ -546,7 +548,7 @@ function findClosestAstronautToLandingPad(): { astronaut: Astronaut; distance: n
       closestAstronaut = astronaut;
     }
   }
-  console.log(closestAstronaut);
+
   return closestAstronaut ? { astronaut: closestAstronaut, distance: minDistance } : null;
 }
 
