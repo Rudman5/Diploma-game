@@ -9,5 +9,15 @@ export default defineConfig(({ command, mode }) => {
         babylonjs: mode === 'development' ? 'babylonjs/babylon.max' : 'babylonjs',
       },
     },
+    plugins: [
+      {
+        name: 'fix-recast',
+        transform(code, id) {
+          if (id.includes('recast-detour.js')) {
+            return code.replace(`this["Recast"]`, 'window["Recast"]');
+          }
+        },
+      },
+    ],
   };
 });
