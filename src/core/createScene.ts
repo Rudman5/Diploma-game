@@ -14,11 +14,9 @@ import { PlacementController } from '../modelCreation/placementController';
 import { createNavMesh } from './createNavMesh';
 import { Rover } from '../modelCreation/rover';
 import { RockManager } from './rockManager';
-import { gameWon } from './App';
 
 export async function createScene(engine: BABYLON.Engine, canvas: HTMLCanvasElement) {
   const scene = new BABYLON.Scene(engine);
-  gameWon();
   scene.createDefaultEnvironment({
     createSkybox: false,
     createGround: false,

@@ -7,7 +7,22 @@
   </head>
   <body>
     <canvas id="renderCanvas"></canvas>
-    <div class="game-details">
+    <div class="gui-btn" style="position: fixed; top: 10px; right: 10px">Game objective</div>
+    <div id="game-details" class="hidden">
+      <div id="game-objective" class="hidden">
+        <div>Mission Briefing</div>
+        <br />
+        <div>
+          Your primary objective is to successfully deploy the landing pad within Artemis' precisely
+          designated landing area. To accomplish this critical mission, your astronaut team must
+          navigate the challenges of the harsh lunar environment while managing essential survival
+          resources. You'll need to carefully gather materials and supplies, then utilize the rover
+          to transport both crew and equipment across the treacherous terrain to reach the target
+          deployment zone. Every decision counts in ensuring both mission success and crew survival.
+        </div>
+        <br />
+        <div class="gui-btn" id="close-objective">Close</div>
+      </div>
       <div id="game-over" class="hidden">
         <div>Game Over</div>
         <div id="astronaut-name"></div>
@@ -22,6 +37,13 @@
           Against all odds, your crew has triumphed over the challenges of space exploration. The
           Artemis rocket is now en route to Earth, carrying your victorious astronauts and priceless
           scientific discoveries back to a hero's welcome.
+        </div>
+        <div
+          class="gui-btn"
+          id="start-new-won"
+          style="width: auto; padding: 0px 20px; cursor: pointer"
+        >
+          Start new game
         </div>
       </div>
     </div>
@@ -384,7 +406,7 @@
       box-shadow: none;
     }
 
-    .game-details {
+    #game-details {
       position: fixed;
       top: 0;
       left: 0;
@@ -398,6 +420,7 @@
       backdrop-filter: blur(5px);
     }
 
+    #game-objective,
     #game-over,
     #game-won {
       background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
@@ -420,6 +443,12 @@
     #game-won {
       border-color: #44ff44;
       box-shadow: 0 0 30px rgba(68, 255, 68, 0.3);
+    }
+
+    #game-objective {
+      max-width: 1000px;
+      border-color: #00ffff;
+      box-shadow: 0 0 30px rgba(0, 255, 255, 0.3);
     }
 
     #game-over > div:first-child,

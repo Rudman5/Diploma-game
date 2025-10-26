@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import * as BABYLON from '@babylonjs/core';
 import { Astronaut } from './astronaut';
 import { Rover } from './rover';
@@ -10,6 +11,7 @@ import {
 import { ModelMetadata } from '../types';
 import { ResourceManager } from '../core/resourceManager';
 import { showAlert } from '../core/alertSystem';
+import { gameWon } from '../core/App';
 
 const RESOURCE_COLORS: Record<string, BABYLON.Color3> = {
   water: BABYLON.Color3.FromHexString('#2e90b0'),
@@ -524,6 +526,7 @@ export class PlacementController {
       );
 
       await this.animateRocketLanding(rocketRoot, targetPosition, landingPad);
+      setTimeout(() => gameWon(), 5000);
     } catch (error) {
       console.error('Failed to spawn Artemis rocket:', error);
     }

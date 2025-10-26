@@ -5,11 +5,11 @@ import { Rover } from '../modelCreation/rover';
 export class ResourceManager {
   private scene: BABYLON.Scene;
   private accumulatedResources: Record<string, number> = {
-    oxygen: 100,
-    food: 100,
-    water: 100,
+    oxygen: 150,
+    food: 150,
+    water: 150,
     energy: 0,
-    rocks: 50,
+    rocks: 10,
   };
 
   private productionRates = new Map<
