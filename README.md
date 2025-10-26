@@ -1,6 +1,6 @@
 # Diploma-game
 
-A strategic simulation game (RTS/sandbox) in which the player leads the development of a permanent human base on the Moon. The game is based on real lunar missions from both the past and the future. Each mission represents a level with unique challenges and objectives.
+A strategic simulation game where you command the Apollo 11 astronauts who remained on the Moon to prepare for humanity's return. Guide the astronauts as they establish the first lunar base, deploy landing infrastructure, and survive using limited resources while awaiting the Artemis program's arrival.
 
 # Run
 
