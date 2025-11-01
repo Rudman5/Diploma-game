@@ -1,8 +1,7 @@
 export class AlertSystem {
   private static instance: AlertSystem;
   private alertContainer: HTMLDivElement;
-  private activeAlerts: Map<string, { element: HTMLDivElement; timeout: NodeJS.Timeout }> =
-    new Map();
+  private activeAlerts: Map<string, { element: HTMLDivElement; timeout: number }> = new Map();
 
   private constructor() {
     this.alertContainer = document.getElementById('alert-container') as HTMLDivElement;
