@@ -1,5 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unused-vars */
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import { Astronaut } from '../modelCreation/astronaut';
 import { PlacementController } from '../modelCreation/placementController';
 import * as BABYLON from '@babylonjs/core';
@@ -8,6 +6,7 @@ import { moveCameraTo } from './createCamera';
 import { modelFiles } from '../constants';
 import { ResourceManager } from './resourceManager';
 import { showAlert } from './alertSystem';
+import { extendedScene } from '../types';
 
 let clickSound: BABYLON.StaticSound | null = null;
 let landingPadTargetArea: { center: BABYLON.Vector3; radius: number } | null = null;
@@ -23,7 +22,7 @@ function playClickSound() {
 export function createGui(
   placementController: PlacementController,
   ground: BABYLON.GroundMesh,
-  scene: BABYLON.Scene
+  scene: extendedScene
 ) {
   BABYLON.CreateSoundAsync('clickSound', './sounds/click.mp3', {
     loop: false,
@@ -49,10 +48,10 @@ export function createGui(
   let activeButton: HTMLButtonElement | null = null;
 
   function refreshSubMenu() {
-    const resourceManager: ResourceManager = (scene as any).resourceManager;
+    const resourceManager: ResourceManager = scene.resourceManager;
     modelButtonsContainer.innerHTML = '';
 
-    Object.entries(modelFiles).forEach(([key, data]) => {
+    Object.entries(modelFiles).forEach(([, data]) => {
       const btn = document.createElement('button');
       btn.className = 'menu-btn model-btn';
 
@@ -126,15 +125,15 @@ export function createGui(
     });
   }
 
-  (scene as any).refreshBuildingMenu = refreshSubMenu;
+  scene.refreshBuildingMenu = refreshSubMenu;
   setupLeaveButton();
   refreshSubMenu();
   setupRefillButtons(scene, placementController);
   updateGlobalResourceDisplay(scene);
 }
 
-export function updateBuildingButtons(scene: BABYLON.Scene) {
-  const refreshSubMenu = (scene as any).refreshBuildingMenu;
+export function updateBuildingButtons(scene: extendedScene) {
+  const refreshSubMenu = scene.refreshBuildingMenu;
   if (refreshSubMenu) {
     refreshSubMenu();
   }
@@ -266,7 +265,7 @@ export function updateResourceInfo(
 ) {
   if (!entity) return;
   if (entity instanceof BABYLON.TransformNode && entity.metadata?.resource) {
-    const scene = (entity as any).getScene?.();
+    const scene = entity.getScene?.() as extendedScene;
     if (scene) {
       updateRefillButtons(scene);
     }
@@ -358,8 +357,8 @@ export function hideDestroyButton() {
   if (destroyBtn) destroyBtn.style.display = 'none';
 }
 
-export function updateGlobalResourceDisplay(scene: BABYLON.Scene) {
-  const resourceManager: ResourceManager = (scene as any).resourceManager;
+export function updateGlobalResourceDisplay(scene: extendedScene) {
+  const resourceManager: ResourceManager = scene.resourceManager;
   if (!resourceManager) return;
 
   const resources = resourceManager.getResourceStats();
@@ -423,14 +422,14 @@ export function updateGlobalResourceDisplay(scene: BABYLON.Scene) {
   }
 }
 
-export function setupRefillButtons(scene: BABYLON.Scene, placementController: PlacementController) {
+export function setupRefillButtons(scene: extendedScene, placementController: PlacementController) {
   const refillAstronautBtn = document.getElementById('refill-astronaut');
   const refillRoverBtn = document.getElementById('refill-rover');
 
   if (refillAstronautBtn) {
     refillAstronautBtn.onclick = () => {
       playClickSound();
-      const refillOptions = (scene as any).currentRefillOptions;
+      const refillOptions = scene.currentRefillOptions;
       if (refillOptions?.building && refillOptions.canRefillAstronaut) {
         const success = placementController.refillAstronautFromBuilding(refillOptions.building);
         if (success) {
@@ -446,7 +445,7 @@ export function setupRefillButtons(scene: BABYLON.Scene, placementController: Pl
   if (refillRoverBtn) {
     refillRoverBtn.onclick = () => {
       playClickSound();
-      const refillOptions = (scene as any).currentRefillOptions;
+      const refillOptions = scene.currentRefillOptions;
       if (refillOptions?.building && refillOptions.canRefillRover) {
         const success = placementController.refillRoverFromBuilding(refillOptions.building);
         if (success) {
@@ -460,8 +459,8 @@ export function setupRefillButtons(scene: BABYLON.Scene, placementController: Pl
   }
 }
 
-export function updateRefillButtons(scene: BABYLON.Scene) {
-  const refillOptions = (scene as any).currentRefillOptions;
+export function updateRefillButtons(scene: extendedScene) {
+  const refillOptions = scene.currentRefillOptions;
   const refillAstronautBtn = document.getElementById('refill-astronaut');
   const refillRoverBtn = document.getElementById('refill-rover');
 
@@ -568,6 +567,7 @@ function unlockLandingPadButton() {
       }
     }, 2000);
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const refreshSubMenu = (window as any).refreshBuildingMenu;
     if (refreshSubMenu) {
       refreshSubMenu();
@@ -579,18 +579,18 @@ function findLandingPadButton(): HTMLButtonElement | null {
   const modelButtonsContainer = document.getElementById('model-buttons');
   if (!modelButtonsContainer) return null;
 
+  let foundButton: HTMLButtonElement | null = null;
   const buttons = modelButtonsContainer.querySelectorAll('.model-btn');
-  for (const button of buttons) {
+  buttons.forEach((button) => {
     const img = button.querySelector('img');
     if (img) {
       const altText = img.alt.toLowerCase();
-      if (altText.includes('landing') || altText.includes('landingpad')) {
-        return button as HTMLButtonElement;
+      if ((altText.includes('landing') || altText.includes('landingpad')) && !foundButton) {
+        foundButton = button as HTMLButtonElement;
       }
     }
-  }
-
-  return null;
+  });
+  return foundButton;
 }
 
 export function isPositionInLandingPadArea(position: BABYLON.Vector3): boolean {

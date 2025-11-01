@@ -1,11 +1,12 @@
 import * as BABYLON from '@babylonjs/core';
 import { Astronaut } from './astronaut';
 import { hideLeaveButton, showLeaveButton, updateResourceInfo } from '../core/createGui';
+import { extendedScene } from '../types';
 
 export class Rover {
   public static mainRover: Rover;
   public mesh!: BABYLON.AbstractMesh;
-  private scene: BABYLON.Scene;
+  private scene: extendedScene;
   private groundMesh?: BABYLON.GroundMesh;
   private crowdAgent?: number;
   private moveObserver?: BABYLON.Observer<BABYLON.Scene>;
@@ -25,7 +26,7 @@ export class Rover {
   public occupiedBy: Astronaut[] = [];
   public static selectedRover: Rover | null = null;
 
-  constructor(scene: BABYLON.Scene, groundMesh: BABYLON.GroundMesh) {
+  constructor(scene: extendedScene, groundMesh: BABYLON.GroundMesh) {
     this.scene = scene;
     this.groundMesh = groundMesh;
     Rover.mainRover = this;
@@ -53,7 +54,7 @@ export class Rover {
   addCrowdAgent() {
     if (this.crowdAgent) return;
 
-    const scene: any = this.scene;
+    const scene = this.scene;
     const crowd: BABYLON.ICrowd | undefined = scene.crowd;
     const navPlugin: BABYLON.RecastJSPlugin | undefined = scene.navigationPlugin;
     if (!crowd || !navPlugin?.navMesh) return;
@@ -82,15 +83,10 @@ export class Rover {
     }
   }
 
-  async driveTo(
-    target: BABYLON.Vector3,
-    speed = 12,
-    callback?: () => void,
-    deselectOnComplete = false
-  ) {
+  async driveTo(target: BABYLON.Vector3, callback?: () => void, deselectOnComplete = false) {
     if (!this.mesh) return;
 
-    const scene: any = this.scene;
+    const scene = this.scene;
     const navPlugin: BABYLON.RecastJSPlugin | undefined = scene.navigationPlugin;
     const crowd: BABYLON.ICrowd | undefined = scene.crowd;
     if (!navPlugin?.navMesh || !crowd) {
@@ -100,7 +96,7 @@ export class Rover {
 
     this.addCrowdAgent();
     const agent = this.crowdAgent!;
-    const ground = scene.getMeshByName('ground') as any;
+    const ground = scene.getMeshByName('ground') as BABYLON.GroundMesh;
     const particles = new BABYLON.ParticleSystem('particles', 1000, scene);
     particles.emitter = this.mesh;
 
@@ -114,7 +110,7 @@ export class Rover {
     particles.emitRate = 50;
 
     particles.start();
-    let navTarget = navPlugin.getClosestPoint(target) ?? target.clone();
+    const navTarget = navPlugin.getClosestPoint(target) ?? target.clone();
     if (ground?.getHeightAtCoordinates) {
       const gy = ground.getHeightAtCoordinates(navTarget.x, navTarget.z);
       if (typeof gy === 'number') navTarget.y = gy;
@@ -178,7 +174,7 @@ export class Rover {
   }
 
   stopMove() {
-    const scene: any = this.scene;
+    const scene = this.scene;
     if (this.moveObserver) {
       scene.onBeforeRenderObservable.remove(this.moveObserver);
       this.moveObserver = undefined;

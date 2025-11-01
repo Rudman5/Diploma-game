@@ -1,9 +1,10 @@
 import * as BABYLON from '@babylonjs/core';
 import { Astronaut } from '../modelCreation/astronaut';
 import { Rover } from '../modelCreation/rover';
+import { extendedScene } from '../types';
 
 export class ResourceManager {
-  private scene: BABYLON.Scene;
+  private scene: extendedScene;
   private accumulatedResources: Record<string, number> = {
     oxygen: 150,
     food: 150,
@@ -43,7 +44,7 @@ export class ResourceManager {
     energy: 0,
   };
 
-  constructor(scene: BABYLON.Scene) {
+  constructor(scene: extendedScene) {
     this.scene = scene;
     this.startProductionLoop();
   }
@@ -100,7 +101,7 @@ export class ResourceManager {
       if (hasEnoughEnergy) {
         this.actualEnergyConsumption = this.totalEnergyRequired;
 
-        this.productionRates.forEach((production, building) => {
+        this.productionRates.forEach((production) => {
           if (production.type === 'energy') return;
 
           production.isActive = true;
@@ -120,12 +121,13 @@ export class ResourceManager {
     });
 
     const buildingsArray = Array.from(this.productionRates.entries())
-      .filter(([_, production]) => production.type !== 'energy')
-      .sort(([_, a], [__, b]) => b.priority - a.priority);
+      .filter((entry) => entry[1].type !== 'energy')
+      .sort((entryA, entryB) => entryB[1].priority - entryA[1].priority);
 
     let remainingEnergy = this.energyProduction;
 
-    for (const [building, production] of buildingsArray) {
+    for (const entry of buildingsArray) {
+      const production = entry[1];
       if (production.energyConsumption <= remainingEnergy) {
         production.isActive = true;
         this.actualEnergyConsumption += production.energyConsumption;
@@ -282,7 +284,7 @@ export class ResourceManager {
 
   public addRocks(amount: number) {
     this.accumulatedResources.rocks += amount;
-    const scene = this.scene as any;
+    const scene = this.scene;
     if (scene.refreshBuildingMenu) {
       scene.refreshBuildingMenu();
     }
@@ -291,7 +293,7 @@ export class ResourceManager {
   public consumeRocks(amount: number): boolean {
     if (this.accumulatedResources.rocks >= amount) {
       this.accumulatedResources.rocks -= amount;
-      const scene = this.scene as any;
+      const scene = this.scene;
       if (scene.refreshBuildingMenu) {
         scene.refreshBuildingMenu();
       }

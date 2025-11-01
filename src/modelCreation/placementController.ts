@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import * as BABYLON from '@babylonjs/core';
 import { Astronaut } from './astronaut';
 import { Rover } from './rover';
@@ -8,20 +7,14 @@ import {
   updateResourceInfo,
   hideRefillButtons,
 } from '../core/createGui';
-import { ModelMetadata } from '../types';
+import { extendedScene, ModelMetadata, Rock } from '../types';
 import { ResourceManager } from '../core/resourceManager';
 import { showAlert } from '../core/alertSystem';
 import { gameWon } from '../core/App';
-
-const RESOURCE_COLORS: Record<string, BABYLON.Color3> = {
-  water: BABYLON.Color3.FromHexString('#2e90b0'),
-  food: BABYLON.Color3.FromHexString('#c9112d'),
-  oxygen: BABYLON.Color3.FromHexString('#27de48'),
-  energy: BABYLON.Color3.FromHexString('#ffff00'),
-};
+import { RESOURCE_COLORS } from '../constants';
 
 export class PlacementController {
-  private scene: BABYLON.Scene;
+  private scene: extendedScene;
   private currentRoot: BABYLON.TransformNode | null = null;
   private rotating = false;
   private placedBBoxes: { min: BABYLON.Vector3; max: BABYLON.Vector3 }[] = [];
@@ -31,16 +24,16 @@ export class PlacementController {
   private pointerObserver?: BABYLON.Observer<BABYLON.PointerInfo>;
   private rotationObserver?: BABYLON.Observer<BABYLON.Scene>;
   private keyboardObserver?: BABYLON.Observer<BABYLON.KeyboardInfo>;
-  private obstacles: any[] = [];
+  private obstacles: number[] = [];
 
   public placedObjects: BABYLON.TransformNode[] = [];
   public selectedBuilding: BABYLON.TransformNode | null = null;
 
-  constructor(scene: BABYLON.Scene) {
+  constructor(scene: extendedScene) {
     this.scene = scene;
     this.highlightLayer = new BABYLON.HighlightLayer('hl', scene);
     this.resourceManager = new ResourceManager(scene);
-    (scene as any).resourceManager = this.resourceManager;
+    scene.resourceManager = this.resourceManager;
 
     this.keyboardObserver = this.scene.onKeyboardObservable.add((kbInfo) => {
       if (kbInfo.type === BABYLON.KeyboardEventTypes.KEYDOWN && kbInfo.event.key === 'Escape') {
@@ -102,7 +95,7 @@ export class PlacementController {
         );
         if (!pick?.hit || !pick.pickedPoint) return;
 
-        let pos = pick.pickedPoint.clone();
+        const pos = pick.pickedPoint.clone();
         pos.y += yOffset;
         if (gridSize > 0) {
           pos.x = Math.round(pos.x / gridSize) * gridSize;
@@ -145,7 +138,7 @@ export class PlacementController {
         }
 
         if (canPlace) {
-          const rockManager = (this.scene as any).rockManager;
+          const rockManager = this.scene.rockManager;
           if (rockManager) {
             const rocks = rockManager.getRocks();
             for (const rock of rocks) {
@@ -174,7 +167,7 @@ export class PlacementController {
 
       if (pi.type === BABYLON.PointerEventTypes.POINTERDOWN && pi.event.button === 0 && canPlace) {
         if (metadata?.rocksNeeded) {
-          const resourceManager: ResourceManager = (this.scene as any).resourceManager;
+          const resourceManager: ResourceManager = this.scene.resourceManager;
           if (!resourceManager || !resourceManager.consumeRocks(metadata.rocksNeeded)) {
             console.warn(`Not enough rocks! Need ${metadata.rocksNeeded}`);
             return;
@@ -201,7 +194,7 @@ export class PlacementController {
     return distance < 5.0;
   }
 
-  private isPositionOccupiedByRock(position: BABYLON.Vector3, rock: any): boolean {
+  private isPositionOccupiedByRock(position: BABYLON.Vector3, rock: Rock): boolean {
     const rockPos = rock.mesh.position;
     const distance = BABYLON.Vector3.Distance(position, rockPos);
     return distance < 3.0;
@@ -256,8 +249,8 @@ export class PlacementController {
         this.createRadiusCircle(root, groundMesh, resourceType, radius);
     }
 
-    const crowd: BABYLON.ICrowd | undefined = (this.scene as any).crowd;
-    const navPlugin: any = (this.scene as any).navigationPlugin;
+    const crowd: BABYLON.ICrowd | undefined = this.scene.crowd;
+    const navPlugin = this.scene.navigationPlugin;
 
     if (crowd && navPlugin) {
       const center = root.position.clone();
@@ -355,16 +348,14 @@ export class PlacementController {
     this.rotating = false;
   }
 
-  public removeObstacle(obstacle: any) {
+  public removeObstacle(obstacle: number) {
     const index = this.obstacles.indexOf(obstacle);
     if (index !== -1) {
-      this.obstacles[index].dispose?.();
       this.obstacles.splice(index, 1);
     }
   }
 
   public clearObstacles() {
-    this.obstacles.forEach((o) => o.dispose?.());
     this.obstacles = [];
   }
 
@@ -386,8 +377,8 @@ export class PlacementController {
     }
     this.resourceManager.unregisterBuilding(building);
 
-    if ((this.scene as any).crowd && this.obstacles[index] !== undefined) {
-      const crowd: BABYLON.ICrowd = (this.scene as any).crowd;
+    if (this.scene.crowd && this.obstacles[index] !== undefined) {
+      const crowd: BABYLON.ICrowd = this.scene.crowd;
       const agentIndex = this.obstacles[index];
       crowd.removeAgent(agentIndex);
       this.obstacles.splice(index, 1);
@@ -426,7 +417,7 @@ export class PlacementController {
     return amountRefilled > 0;
   }
 
-  public handlePointerPick(pick: BABYLON.PickingInfo, event: PointerEvent) {
+  public handlePointerPick(pick: BABYLON.PickingInfo) {
     this.deselectAllCircles();
 
     let clickedBuilding: BABYLON.TransformNode | null = null;
@@ -440,7 +431,7 @@ export class PlacementController {
       updateResourceInfo(clickedBuilding);
 
       const refillOptions = this.checkRefillOptions(clickedBuilding);
-      (this.scene as any).currentRefillOptions = {
+      this.scene.currentRefillOptions = {
         building: clickedBuilding,
         canRefillAstronaut: refillOptions.canRefillAstronaut,
         canRefillRover: refillOptions.canRefillRover,
@@ -483,11 +474,11 @@ export class PlacementController {
     hideDestroyButton();
     hideRefillButtons();
 
-    (this.scene as any).currentRefillOptions = null;
+    this.scene.currentRefillOptions = null;
   }
 
   public canAffordBuilding(metadata: ModelMetadata): boolean {
-    const resourceManager: ResourceManager = (this.scene as any).resourceManager;
+    const resourceManager: ResourceManager = this.scene.resourceManager;
     if (!resourceManager) return false;
 
     const rocksNeeded = metadata.rocksNeeded || 0;

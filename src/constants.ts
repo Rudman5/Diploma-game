@@ -1,4 +1,5 @@
 import { ModelFiles } from './types';
+import * as BABYLON from '@babylonjs/core';
 
 export const modelFiles: ModelFiles = {
   solarPanelStructure: {
@@ -62,4 +63,11 @@ export const modelFiles: ModelFiles = {
   //       energyConsumption: 1,
   //     },
   //   },
+};
+
+export const RESOURCE_COLORS: Record<string, BABYLON.Color3> = {
+  water: BABYLON.Color3.FromHexString('#2e90b0'),
+  food: BABYLON.Color3.FromHexString('#c9112d'),
+  oxygen: BABYLON.Color3.FromHexString('#27de48'),
+  energy: BABYLON.Color3.FromHexString('#ffff00'),
 };

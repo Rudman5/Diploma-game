@@ -1,17 +1,18 @@
 import * as BABYLON from '@babylonjs/core';
 import Recast from 'recast-detour';
 import { RecastJSPlugin } from '@babylonjs/core/Navigation/Plugins/recastJSPlugin';
+import { extendedScene } from '../types';
 
 export async function createNavMesh(
-  scene: BABYLON.Scene,
+  scene: extendedScene,
   meshes: BABYLON.Mesh[]
 ): Promise<BABYLON.RecastJSPlugin> {
   const recast = await Recast();
 
-  const oldPlugin = (scene as any).navigationPlugin as RecastJSPlugin;
+  const oldPlugin = scene.navigationPlugin as RecastJSPlugin;
   if (oldPlugin) oldPlugin.dispose();
 
-  const oldCrowd = (scene as any).crowd;
+  const oldCrowd = scene.crowd;
   if (oldCrowd) oldCrowd.dispose();
 
   const navigationPlugin = new RecastJSPlugin(recast);
@@ -36,9 +37,9 @@ export async function createNavMesh(
   navigationPlugin.createNavMesh(meshes, params);
 
   const crowd = navigationPlugin.createCrowd(1200, 30, scene);
-  (scene as any).crowd = crowd;
+  scene.crowd = crowd;
 
-  (scene as any).navigationPlugin = navigationPlugin;
+  scene.navigationPlugin = navigationPlugin;
 
   return navigationPlugin;
 }

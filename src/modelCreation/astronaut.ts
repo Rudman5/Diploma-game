@@ -1,16 +1,14 @@
-/* eslint-disable @typescript-eslint/no-unused-vars */
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import * as BABYLON from '@babylonjs/core';
 import { Rover } from './rover';
 import { hideLeaveButton, showLeaveButton } from '../core/createGui';
-import { InteractionTarget } from '../types';
+import { extendedScene, InteractionTarget } from '../types';
 import { Rock } from '../types';
 import { showAlert } from '../core/alertSystem';
 import { gameOver } from '../core/App';
 
 export class Astronaut {
   public mesh!: BABYLON.AbstractMesh;
-  private scene: BABYLON.Scene;
+  private scene: extendedScene;
   private animations = new Map<string, BABYLON.AnimationGroup>();
   private moveObserver?: BABYLON.Observer<BABYLON.Scene>;
   private _hl?: BABYLON.HighlightLayer;
@@ -45,7 +43,7 @@ export class Astronaut {
   public static allAstronauts: Astronaut[] = [];
   public static selectedAstronaut: Astronaut | null = null;
 
-  constructor(scene: BABYLON.Scene, groundMesh: BABYLON.GroundMesh, id: string, name: string) {
+  constructor(scene: extendedScene, groundMesh: BABYLON.GroundMesh, id: string, name: string) {
     this.scene = scene;
     this.groundMesh = groundMesh;
     this.id = id;
@@ -80,7 +78,7 @@ export class Astronaut {
   addCrowdAgent() {
     if (this.crowdAgent) return;
 
-    const scene: any = this.scene;
+    const scene = this.scene;
     const crowd: BABYLON.ICrowd | undefined = scene.crowd;
     const navPlugin: BABYLON.RecastJSPlugin | undefined = scene.navigationPlugin;
 
@@ -110,14 +108,13 @@ export class Astronaut {
   }
   async walkTo(
     target: BABYLON.Vector3 | InteractionTarget,
-    speed = 2,
     callback?: () => void,
     arrivalDistance: number = 2.0
   ) {
     if (!this.mesh) return;
     this.stopWalk();
 
-    const scene: any = this.scene;
+    const scene = this.scene;
     const particles = new BABYLON.ParticleSystem('particles', 1000, scene);
     particles.emitter = this.mesh;
 
@@ -151,7 +148,7 @@ export class Astronaut {
       navTarget = navPlugin.getClosestPoint(target) || target.clone();
     }
 
-    const ground = scene.getMeshByName('ground') as any;
+    const ground = scene.getMeshByName('ground') as BABYLON.GroundMesh;
     if (ground?.getHeightAtCoordinates) {
       const groundY = ground.getHeightAtCoordinates(navTarget.x, navTarget.z);
       if (typeof groundY === 'number') navTarget.y = groundY;
@@ -244,7 +241,9 @@ export class Astronaut {
     });
   }
 
-  private isInteractionTarget(target: any): target is InteractionTarget {
+  private isInteractionTarget(
+    target: BABYLON.Vector3 | InteractionTarget
+  ): target is InteractionTarget {
     return (
       target &&
       typeof target === 'object' &&
@@ -264,7 +263,7 @@ export class Astronaut {
       type: 'rover',
     };
 
-    this.walkTo(interactionTarget, 2, callback);
+    this.walkTo(interactionTarget, callback);
   }
 
   walkToRock(rock: Rock, callback?: () => void) {
@@ -272,7 +271,7 @@ export class Astronaut {
       position: rock.mesh.position,
       interactionRadius: rock.rockType === 'rockLarge' ? 5 : 3,
       onInteract: (astronaut: Astronaut) => {
-        const rockManager = (this.scene as any).rockManager;
+        const rockManager = this.scene.rockManager;
         if (rockManager) {
           rockManager.startDigging(astronaut, rock);
         }
@@ -281,13 +280,13 @@ export class Astronaut {
       type: 'rock',
     };
 
-    this.walkTo(interactionTarget, 2, callback);
+    this.walkTo(interactionTarget, callback);
   }
 
   stopWalk() {
     this.walkingSound?.stop();
 
-    const scene: any = this.scene;
+    const scene = this.scene;
     if (this.moveObserver) {
       scene.onBeforeRenderObservable.remove(this.moveObserver);
       this.moveObserver = undefined;
@@ -318,7 +317,7 @@ export class Astronaut {
       this.rover.engineSound.stop();
     }
     const rover = this.rover;
-    const scene: any = this.scene;
+    const scene = this.scene;
 
     const hlRover = rover['_hl'] as BABYLON.HighlightLayer | undefined;
     if (hlRover) {
@@ -333,7 +332,7 @@ export class Astronaut {
     const distance = 7;
     const exitWorld = center.add(rightDir.normalize().scale(distance));
 
-    const ground = scene.getMeshByName('ground') as any;
+    const ground = scene.getMeshByName('ground') as BABYLON.GroundMesh;
     if (ground && typeof ground.getHeightAtCoordinates === 'function') {
       const gy = ground.getHeightAtCoordinates(exitWorld.x, exitWorld.z);
       exitWorld.y = typeof gy === 'number' ? gy + 0.05 : rover.mesh.position.y;

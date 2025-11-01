@@ -2,20 +2,20 @@ import * as BABYLON from '@babylonjs/core';
 import { Astronaut } from '../modelCreation/astronaut';
 import { Rover } from '../modelCreation/rover';
 
-import { Rock, RockType } from '../types';
+import { extendedScene, Rock, RockType } from '../types';
 
 export class RockManager {
-  private scene: BABYLON.Scene;
+  private scene: extendedScene;
   private rocks: Rock[] = [];
   private groundMesh: BABYLON.GroundMesh;
   private crowd: BABYLON.ICrowd;
   private navPlugin: BABYLON.RecastJSPlugin;
 
-  constructor(scene: BABYLON.Scene, groundMesh: BABYLON.GroundMesh) {
+  constructor(scene: extendedScene, groundMesh: BABYLON.GroundMesh) {
     this.scene = scene;
     this.groundMesh = groundMesh;
-    this.crowd = (scene as any).crowd;
-    this.navPlugin = (scene as any).navigationPlugin;
+    this.crowd = scene.crowd;
+    this.navPlugin = scene.navigationPlugin;
   }
 
   public scatterRocksAcrossMap(count: number) {
@@ -92,7 +92,7 @@ export class RockManager {
       }
     }
 
-    const placementController: any = (this.scene as any).placementController;
+    const placementController = this.scene.placementController;
     if (placementController && placementController.placedObjects) {
       for (const building of placementController.placedObjects) {
         if (BABYLON.Vector3.Distance(position, building.position) < minDistance) {
@@ -166,7 +166,7 @@ export class RockManager {
     }
 
     rock.mesh.actionManager.registerAction(
-      new BABYLON.ExecuteCodeAction(BABYLON.ActionManager.OnPickTrigger, (event) => {
+      new BABYLON.ExecuteCodeAction(BABYLON.ActionManager.OnPickTrigger, () => {
         if (Astronaut.selectedAstronaut && !rock.isBeingDug) {
           this.startDigging(Astronaut.selectedAstronaut, rock);
         }
@@ -191,7 +191,7 @@ export class RockManager {
         if (rock.mesh.isDisposed()) return;
         astronaut.diggingSound!.stop();
         astronaut.playAnimation('Idle');
-        const resourceManager: any = (this.scene as any).resourceManager;
+        const resourceManager = this.scene.resourceManager;
         if (resourceManager && resourceManager.addRocks) {
           resourceManager.addRocks(rock.rockValue);
         }

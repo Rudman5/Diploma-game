@@ -1,5 +1,15 @@
-import { AbstractMesh, Vector3 } from '@babylonjs/core';
+import {
+  AbstractMesh,
+  ICrowd,
+  RecastJSPlugin,
+  Scene,
+  TransformNode,
+  Vector3,
+} from '@babylonjs/core';
 import { Astronaut } from './modelCreation/astronaut';
+import { ResourceManager } from './core/resourceManager';
+import { RockManager } from './core/rockManager';
+import { PlacementController } from './modelCreation/placementController';
 
 export interface ModelData {
   file: string;
@@ -40,4 +50,20 @@ export interface RockData {
   type: RockType;
   value: number;
   digTime: number;
+}
+
+export interface extendedScene extends Scene {
+  resourceManager: ResourceManager;
+  rockManager: RockManager;
+  crowd: ICrowd;
+  navigationPlugin: RecastJSPlugin;
+  placementController: PlacementController;
+  currentRefillOptions: refillOptions | null;
+  refreshBuildingMenu: () => void;
+}
+
+interface refillOptions {
+  building: TransformNode;
+  canRefillRover: boolean;
+  canRefillAstronaut: boolean;
 }

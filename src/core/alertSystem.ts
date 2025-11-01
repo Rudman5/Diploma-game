@@ -47,7 +47,6 @@ export class AlertSystem {
 
     const timeout = setTimeout(removeThisAlert, 10000);
 
-    // Store both the element and timeout so we can manage them
     this.activeAlerts.set(alertKey, {
       element: alertElement,
       timeout: timeout,
@@ -70,9 +69,8 @@ export class AlertSystem {
       }, 300);
     }
   }
-
   public clearAll(): void {
-    for (const [alertKey, alertData] of this.activeAlerts.entries()) {
+    for (const alertData of this.activeAlerts.values()) {
       clearTimeout(alertData.timeout);
       if (alertData.element.parentNode) {
         alertData.element.parentNode.removeChild(alertData.element);
@@ -80,7 +78,6 @@ export class AlertSystem {
     }
     this.activeAlerts.clear();
   }
-
   public removeAlertByMessage(
     message: string,
     type?: 'error' | 'warning' | 'info' | 'success'

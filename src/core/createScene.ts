@@ -14,9 +14,10 @@ import { PlacementController } from '../modelCreation/placementController';
 import { createNavMesh } from './createNavMesh';
 import { Rover } from '../modelCreation/rover';
 import { RockManager } from './rockManager';
+import { extendedScene } from '../types';
 
 export async function createScene(engine: BABYLON.Engine, canvas: HTMLCanvasElement) {
-  const scene = new BABYLON.Scene(engine);
+  const scene = new BABYLON.Scene(engine) as extendedScene;
   scene.createDefaultEnvironment({
     createSkybox: false,
     createGround: false,
@@ -42,7 +43,7 @@ export async function createScene(engine: BABYLON.Engine, canvas: HTMLCanvasElem
     {
       width: groundWidth,
       height: groundLength,
-      subdivisions: 256,
+      subdivisions: 128,
       minHeight: -4899 / scale,
       maxHeight: 3466 / scale,
     },
@@ -218,23 +219,23 @@ export async function createScene(engine: BABYLON.Engine, canvas: HTMLCanvasElem
         } else if (clickedRock) {
           selectedAstronaut.walkToRock(clickedRock);
         } else {
-          selectedAstronaut.walkTo(pick.pickedPoint, 2);
+          selectedAstronaut.walkTo(pick.pickedPoint);
         }
         selectedAstronaut.deselect();
       } else if (selectedRover && pick.pickedPoint && rover.occupiedBy.length > 0) {
-        rover.driveTo(pick.pickedPoint, 12);
+        rover.driveTo(pick.pickedPoint);
         rover.deselect();
       }
     }
 
-    placementController.handlePointerPick(pick, event);
+    placementController.handlePointerPick(pick);
   });
 
   const placementController = new PlacementController(scene);
   createGui(placementController, ground, scene);
 
   const rockManager = new RockManager(scene, ground);
-  (scene as any).rockManager = rockManager;
+  scene.rockManager = rockManager;
 
   rockManager.scatterRocksAcrossMap(1000);
 
