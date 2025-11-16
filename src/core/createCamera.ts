@@ -62,8 +62,8 @@ export function createRTSCamera(
     minZ: -halfZ,
     maxZ: halfZ,
     targetZoom: camera.fov,
-    maxZoom: 1,
-    minZoom: 0.5,
+    maxZoom: 1.7,
+    minZoom: 0.8,
     zoom: 0.05,
     zoomSteps: 0.5,
   } as CameraMetadata;
