@@ -29,7 +29,8 @@ export class AlertSystem {
       const existing = this.activeAlerts.get(alertKey);
       if (existing) {
         clearTimeout(existing.timeout);
-        existing.timeout = setTimeout(() => this.removeAlert(alertKey), 5000);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        existing.timeout = setTimeout(() => this.removeAlert(alertKey), 5000) as any;
       }
       return;
     }
@@ -48,7 +49,8 @@ export class AlertSystem {
 
     this.activeAlerts.set(alertKey, {
       element: alertElement,
-      timeout: timeout,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      timeout: timeout as any,
     });
 
     this.alertContainer.appendChild(alertElement);

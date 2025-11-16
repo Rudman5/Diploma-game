@@ -189,9 +189,14 @@
             <span id="rocks-count">10</span>
             <div>Rocks</div>
           </div>
-          <div class="resource" style="padding-left: 15px; border-left: 2px solid white">
+          <div
+            id="target-zone"
+            class="resource"
+            style="padding-left: 15px; border-left: 2px solid white"
+          >
             <div>Target Zone</div>
             <span id="landing-distance">-</span>
+            <div class="tooltip">Distance to target area to place landing pad</div>
           </div>
         </div>
         <div class="astronauts-thumbs">
@@ -419,12 +424,13 @@
       padding-right: 6px;
     }
 
+    #target-zone .tooltip,
     .back-btn .tooltip,
     .model-btn .tooltip,
     .menu-btn .tooltip {
       position: absolute;
       bottom: -20px;
-      background: rgba(0, 0, 0, 0.9);
+      background: rgb(0, 0, 0);
       color: #fff;
       padding: 6px 8px;
       border-radius: 6px;
@@ -434,7 +440,18 @@
       pointer-events: none;
       margin-bottom: 8px;
     }
+
+    #target-zone {
+      position: relative;
+    }
+
+    #target-zone .tooltip {
+      position: absolute;
+      bottom: -45px;
+    }
+
     .astronaut-thumb.active .menu-btn .tooltip,
+    #target-zone:hover .tooltip,
     .back-btn:hover .tooltip,
     .model-btn:hover .tooltip,
     .menu-btn:hover .tooltip {
@@ -463,12 +480,16 @@
     }
 
     .menu-btn.model-btn.disabled {
-      opacity: 0.5;
+      background-color: rgba(255, 255, 255, 0.2);
       cursor: not-allowed;
     }
 
+    .menu-btn.model-btn.disabled:hover img,
+    .menu-btn.model-btn.disabled:hover .tooltip {
+      opacity: 0.5;
+    }
     .menu-btn.model-btn.disabled:hover {
-      transform: none;
+      transform: translateY(-2px);
       box-shadow: none;
     }
 

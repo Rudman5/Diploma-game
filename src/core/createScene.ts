@@ -15,6 +15,7 @@ import { createNavMesh } from './createNavMesh';
 import { Rover } from '../modelCreation/rover';
 import { RockManager } from './rockManager';
 import { extendedScene } from '../types';
+import { showAlert } from './alertSystem';
 
 export async function createScene(engine: BABYLON.Engine, canvas: HTMLCanvasElement) {
   const scene = new BABYLON.Scene(engine) as extendedScene;
@@ -22,6 +23,7 @@ export async function createScene(engine: BABYLON.Engine, canvas: HTMLCanvasElem
     createSkybox: false,
     createGround: false,
   });
+  const placementController = new PlacementController(scene);
 
   const light = new BABYLON.HemisphericLight('light', new BABYLON.Vector3(0, 1, 0), scene);
   light.groundColor = new BABYLON.Color3(0, 0, 0);
@@ -50,6 +52,10 @@ export async function createScene(engine: BABYLON.Engine, canvas: HTMLCanvasElem
     scene
   ) as BABYLON.GroundMesh;
 
+  ground.renderOutline = true;
+  ground.outlineColor = new BABYLON.Color3(1, 0, 0);
+  ground.outlineWidth = 0.04;
+
   const result = await BABYLON.SceneLoader.ImportMeshAsync(
     '',
     './buildModels/',
@@ -57,7 +63,7 @@ export async function createScene(engine: BABYLON.Engine, canvas: HTMLCanvasElem
   );
   const apolloModule = result.meshes[0];
   apolloModule.rotation.z = Math.PI / 4;
-  const apolloLat = 0.67408;
+  const apolloLat = 10.67408;
   const apolloLon = 23.47297;
   const terrainMinLat = 0;
   const terrainMaxLat = 30;
@@ -135,6 +141,9 @@ export async function createScene(engine: BABYLON.Engine, canvas: HTMLCanvasElem
   apolloModule.position.x = apolloModuleCenterX;
   apolloModule.position.z = apolloModuleCenterZ;
   apolloModule.position.y = height;
+  apolloModule.name = 'apollo';
+  placementController.placedObjects.push(apolloModule);
+
   if (crowd && navPlugin) {
     const center = apolloModule.position.clone();
     const size = apolloModule.getHierarchyBoundingVectors(true);
@@ -200,6 +209,7 @@ export async function createScene(engine: BABYLON.Engine, canvas: HTMLCanvasElem
       } else if (rover.containsMesh(pick.pickedMesh as BABYLON.AbstractMesh)) {
         Astronaut.allAstronauts.forEach((a) => a.deselect());
         rover.select();
+        showAlert('If you want to move the rover an astronaut has to be inside!', 'info');
         updateResourceInfo(rover);
       } else {
         Astronaut.allAstronauts.forEach((a) => a.deselect());
@@ -211,6 +221,15 @@ export async function createScene(engine: BABYLON.Engine, canvas: HTMLCanvasElem
     }
 
     if (event.button === 2) {
+      if (placementController) {
+        const clickedBuilding = placementController.placedObjects.find((building) =>
+          building.getChildMeshes().includes(pick.pickedMesh as BABYLON.AbstractMesh)
+        );
+
+        if (clickedBuilding) {
+          return;
+        }
+      }
       if (selectedAstronaut && pick.pickedPoint) {
         const clickedRover = rover.containsMesh(pick.pickedMesh as BABYLON.AbstractMesh);
         const clickedRock = rockManager.findRockFromMesh(pick.pickedMesh as BABYLON.AbstractMesh);
@@ -231,7 +250,6 @@ export async function createScene(engine: BABYLON.Engine, canvas: HTMLCanvasElem
     placementController.handlePointerPick(pick);
   });
 
-  const placementController = new PlacementController(scene);
   createGui(placementController, ground, scene);
 
   const rockManager = new RockManager(scene, ground);

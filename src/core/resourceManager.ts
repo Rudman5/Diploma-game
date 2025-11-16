@@ -2,6 +2,7 @@ import * as BABYLON from '@babylonjs/core';
 import { Astronaut } from '../modelCreation/astronaut';
 import { Rover } from '../modelCreation/rover';
 import { extendedScene } from '../types';
+import { showAlert } from './alertSystem';
 
 export class ResourceManager {
   private scene: extendedScene;
@@ -133,6 +134,11 @@ export class ResourceManager {
         this.actualEnergyConsumption += production.energyConsumption;
         remainingEnergy -= production.energyConsumption;
         this.accumulatedResources[production.type] += production.rate * dt;
+      } else {
+        showAlert(
+          `${entry[0].name} is not producing resources due to insufficient energy`,
+          'warning'
+        );
       }
     }
   }

@@ -62,15 +62,15 @@ export function createRTSCamera(
     minZ: -halfZ,
     maxZ: halfZ,
     targetZoom: camera.fov,
-    maxZoom: 1.4,
+    maxZoom: 1,
     minZoom: 0.5,
-    zoom: 0.005,
-    zoomSteps: 0.2,
+    zoom: 0.05,
+    zoomSteps: 0.5,
   } as CameraMetadata;
 
   camera.inputs.clear();
 
-  // camera.inputs.add(new CameraEdgeScrollInput(canvas, camera));
+  camera.inputs.add(new CameraEdgeScrollInput(canvas, camera));
   camera.inputs.add(new CameraKeyboardInput(camera));
   camera.inputs.add(new CameraMouseWheelInput(camera, scene));
 
@@ -79,7 +79,7 @@ export function createRTSCamera(
 }
 
 // ---------- Edge scrolling ----------
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
+
 class CameraEdgeScrollInput implements ICameraInput<UniversalCamera> {
   public camera: UniversalCamera;
   private canvas: HTMLCanvasElement;
@@ -92,16 +92,17 @@ class CameraEdgeScrollInput implements ICameraInput<UniversalCamera> {
 
   private readonly widthPercent = 0.05;
   private readonly heightPercent = 0.05;
+  private readonly containerOffset = 221;
 
   constructor(canvas: HTMLCanvasElement, camera: UniversalCamera) {
     this.canvas = canvas;
     this.camera = camera;
     this.canvasWidth = canvas.clientWidth;
-    this.canvasHeight = canvas.clientHeight;
+    this.canvasHeight = canvas.clientHeight - this.containerOffset;
 
     window.addEventListener('resize', () => {
       this.canvasWidth = canvas.clientWidth;
-      this.canvasHeight = canvas.clientHeight;
+      this.canvasHeight = canvas.clientHeight - this.containerOffset;
     });
   }
 
@@ -123,6 +124,7 @@ class CameraEdgeScrollInput implements ICameraInput<UniversalCamera> {
     this.canvas.removeEventListener('mouseleave', this.onMouseLeave);
     this.canvas.removeEventListener('mouseenter', this.onMouseEnter);
   }
+
   private onMouseMove = (evt: MouseEvent) => {
     this.mouseX = evt.offsetX / this.canvasWidth;
     this.mouseY = evt.offsetY / this.canvasHeight;
@@ -154,21 +156,20 @@ class CameraEdgeScrollInput implements ICameraInput<UniversalCamera> {
       const rotMat = TmpVectors.Matrix[0];
       Matrix.RotationYToRef(cam.rotation.y, rotMat);
       Vector3.TransformCoordinatesToRef(dir, rotMat, dir);
+
+      meta.targetPosition.copyFrom(cam.position);
       meta.targetPosition.addInPlace(dir);
       meta.movedBy = ECameraMovement.MOUSE;
+
+      cam.position.copyFrom(meta.targetPosition);
+    } else {
+      meta.movedBy = null;
     }
 
     meta.targetPosition.x = Scalar.Clamp(meta.targetPosition.x, meta.minX, meta.maxX);
     meta.targetPosition.z = Scalar.Clamp(meta.targetPosition.z, meta.minZ, meta.maxZ);
-
-    const tmp = TmpVectors.Vector3[1];
-    meta.targetPosition.subtractToRef(cam.position, tmp);
-    const diff = tmp.length();
-    if (diff > 0 && meta.movedBy === ECameraMovement.MOUSE) {
-      const t = diff < 0.01 ? 1 : 0.02;
-      Vector3.LerpToRef(cam.position, meta.targetPosition, t, cam.position);
-      if (t === 1) meta.movedBy = null;
-    }
+    cam.position.x = Scalar.Clamp(cam.position.x, meta.minX, meta.maxX);
+    cam.position.z = Scalar.Clamp(cam.position.z, meta.minZ, meta.maxZ);
   }
 }
 
@@ -332,8 +333,8 @@ export function moveCameraTo(camera: UniversalCamera, target: Vector3) {
   const meta = camera.metadata as CameraMetadata;
   const radius = meta.radius;
   const rotation = meta.rotation;
-  const newPosX = target.x + radius * Math.sin(rotation);
-  const newPosZ = target.z + radius * Math.cos(rotation);
+  const newPosX = target.x - 10 + radius * Math.sin(rotation);
+  const newPosZ = target.z + 13 + radius * Math.cos(rotation);
   const newPosY = camera.position.y;
   meta.targetPosition.copyFrom(camera.position.set(newPosX, newPosY, newPosZ));
 }

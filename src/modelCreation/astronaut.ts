@@ -498,6 +498,7 @@ export class Astronaut {
   }
 
   die() {
+    this.isAlive = false;
     gameOver(this);
     return;
   }

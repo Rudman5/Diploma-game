@@ -1,4 +1,4 @@
-import * as BABYLON from '@babylonjs/core';
+import * as BABYLON from '@babylonjs/core/Legacy/legacy';
 import '@babylonjs/loaders';
 import { createScene } from './createScene';
 import { Astronaut } from '../modelCreation/astronaut';
@@ -21,7 +21,7 @@ export class App {
     await BABYLON.CreateAudioEngineAsync({ resumeOnInteraction: true });
 
     this.scene = await createScene(this.engine, this.canvas);
-
+    // this.scene.debugLayer.show();
     this.hideLoadingScreen();
     this.showGuiContainer();
     showGameObjective();

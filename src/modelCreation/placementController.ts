@@ -11,7 +11,6 @@ import { extendedScene, ModelMetadata, Rock } from '../types';
 import { ResourceManager } from '../core/resourceManager';
 import { showAlert } from '../core/alertSystem';
 import { gameWon } from '../core/App';
-import { RESOURCE_COLORS } from '../constants';
 
 export class PlacementController {
   private scene: extendedScene;
@@ -245,8 +244,6 @@ export class PlacementController {
 
       root.metadata.productionRate = productionRate;
       root.metadata.radius = radius;
-      if (resourceType !== 'energy')
-        this.createRadiusCircle(root, groundMesh, resourceType, radius);
     }
 
     const crowd: BABYLON.ICrowd | undefined = this.scene.crowd;
@@ -278,45 +275,9 @@ export class PlacementController {
     this.deselect();
     if (onPlaced) onPlaced();
     showAlert(
-      'To refill astronaut and rover, bring them inside the circle around the building, then a button will show in the menu',
+      'To refill astronaut and rover, bring them close to the building, then a button will show in the menu',
       'info'
     );
-  }
-
-  private createRadiusCircle(
-    building: BABYLON.TransformNode,
-    groundMesh: BABYLON.Mesh,
-    resourceType: string,
-    radius: number
-  ) {
-    const segments = 64;
-    const points: BABYLON.Vector3[] = [];
-
-    const pos = building.getAbsolutePosition();
-    for (let i = 0; i <= segments; i++) {
-      const angle = (2 * Math.PI * i) / segments;
-      const x = pos.x + Math.cos(angle) * radius;
-      const z = pos.z + Math.sin(angle) * radius;
-
-      const pick = this.scene.pickWithRay(
-        new BABYLON.Ray(new BABYLON.Vector3(x, 1000, z), BABYLON.Vector3.Down(), 2000),
-        (m) => m === groundMesh
-      );
-      const y = pick?.hit && pick.pickedPoint ? pick.pickedPoint.y + 0.05 : pos.y + 0.05;
-      points.push(new BABYLON.Vector3(x, y, z));
-    }
-
-    const circle = BABYLON.MeshBuilder.CreateLines(
-      `${resourceType}_radiusCircle_${Date.now()}`,
-      { points },
-      this.scene
-    );
-
-    circle.color = RESOURCE_COLORS[resourceType] ?? BABYLON.Color3.White();
-    circle.isPickable = false;
-    circle.alwaysSelectAsActiveMesh = false;
-    circle.setEnabled(false);
-    building.metadata.radiusMesh = circle;
   }
 
   public cancelPlacement(): void {
@@ -418,14 +379,12 @@ export class PlacementController {
   }
 
   public handlePointerPick(pick: BABYLON.PickingInfo) {
-    this.deselectAllCircles();
-
     let clickedBuilding: BABYLON.TransformNode | null = null;
     if (pick?.hit && pick.pickedMesh) {
       clickedBuilding =
         this.placedObjects.find((b) => b.getChildMeshes().includes(pick.pickedMesh!)) || null;
     }
-
+    if (clickedBuilding?.name === 'apollo') return;
     if (clickedBuilding) {
       this.selectedBuilding = clickedBuilding;
       updateResourceInfo(clickedBuilding);
@@ -454,17 +413,7 @@ export class PlacementController {
     }
   }
 
-  private deselectAllCircles() {
-    for (const building of this.placedObjects) {
-      if (building.metadata?.radiusMesh) {
-        building.metadata.radiusMesh.setEnabled(false);
-      }
-    }
-  }
-
   private deselect() {
-    this.deselectAllCircles();
-
     if (this.selectedBuilding) {
       for (const mesh of this.selectedBuilding.getChildMeshes()) {
         this.highlightLayer.removeMesh(mesh as BABYLON.Mesh);
